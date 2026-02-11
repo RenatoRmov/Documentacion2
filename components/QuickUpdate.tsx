@@ -19,8 +19,8 @@ interface InputProps {
 const Input = ({ name, label, type = "date", placeholder = "", value, onChange }: InputProps) => (
   <div className="flex-1 space-y-1">
     <Label text={label} />
-    <input 
-      type={type} 
+    <input
+      type={type}
       value={value}
       onChange={(e) => onChange(name, e.target.value)}
       placeholder={placeholder}
@@ -29,11 +29,11 @@ const Input = ({ name, label, type = "date", placeholder = "", value, onChange }
   </div>
 );
 
-const Select = ({ name, label, value, options, onChange }: { name: string, label: string, value: string, options: {label: string, value: string}[], onChange: (name: string, value: string) => void }) => (
+const Select = ({ name, label, value, options, onChange }: { name: string, label: string, value: string, options: { label: string, value: string }[], onChange: (name: string, value: string) => void }) => (
   <div className="flex-1 space-y-1">
     <Label text={label} />
-    <select 
-      value={value} 
+    <select
+      value={value}
       onChange={(e) => onChange(name, e.target.value)}
       className="w-full px-5 py-4 bg-[#0A0C0E] border border-white/5 rounded-xl focus:border-[#C29329]/40 outline-none text-xs transition-all text-zinc-200 font-bold appearance-none cursor-pointer"
     >
@@ -56,7 +56,9 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
   const [success, setSuccess] = useState(false);
 
   const docOptions = [
+    { label: '📝 Padrón', value: 'padron' },
     { label: '🎫 Permiso de Circulación', value: 'permiso' },
+    { label: '👮 Certificado Antecedentes', value: 'antecedentes' },
     { label: '📟 Control Taxímetro', value: 'taximetro' },
     { label: '🔍 Revisión Técnica', value: 'revision' },
     { label: '📜 SOAP', value: 'soap' },
@@ -81,8 +83,12 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
     const f = formData;
 
     switch (selectedDoc) {
+      case 'padron':
+        updates = { vencimientoPadron: f.fecha }; break;
       case 'permiso':
         updates = { vencimientoPermisoCirculacion: f.fecha, municipalidadPermiso: f.extra || '' }; break;
+      case 'antecedentes':
+        updates = { certificadoAntecedentes: f.status as any }; break;
       case 'taximetro':
         updates = { vencimientoControlTaximetro: f.mode === 'No Aplica' ? 'No Aplica' : (f.mode === 'Sin Información' ? 'Sin Información' : f.fecha) }; break;
       case 'revision':
@@ -115,35 +121,36 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
   };
 
   const handleInputChange = (name: string, value: string) => {
-    const finalValue = value.includes('-') && value.length === 10 && value.split('-')[0].length === 4 
-      ? fromISODate(value) 
+    const finalValue = value.includes('-') && value.length === 10 && value.split('-')[0].length === 4
+      ? fromISODate(value)
       : value;
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
   const isFormValid = selectedMovil && selectedDoc && (
-    formData.fecha || 
-    formData.status || 
+    formData.fecha ||
+    formData.status ||
     (selectedDoc === 'taximetro' && (formData.mode === 'No Aplica' || formData.mode === 'Sin Información')) ||
     (selectedDoc === 'taximetro' && formData.mode === 'Fecha' && formData.fecha)
   );
 
   const renderFields = () => {
     const commonProps = { onChange: handleInputChange };
-    
+
     switch (selectedDoc) {
       case 'prestacion':
       case 'arriendo':
+      case 'antecedentes':
         return (
           <div className="max-w-xs animate-in fade-in slide-in-from-top-2 duration-400">
-            <Select 
-              name="status" 
-              label="Actualizar Estado Operativo" 
-              value={formData.status || 'Sin Información'} 
+            <Select
+              name="status"
+              label="Actualizar Estado Operativo"
+              value={formData.status || 'Sin Información'}
               options={[
-                {label: '--- Sin Información ---', value: 'Sin Información'},
-                {label: '✓ OK / Vigente', value: 'OK'}, 
-                {label: '✗ No Aplica', value: 'No Aplica'}
+                { label: '--- Sin Información ---', value: 'Sin Información' },
+                { label: '✓ OK / Vigente', value: 'OK' },
+                { label: '✗ No Aplica', value: 'No Aplica' }
               ]}
               {...commonProps}
             />
@@ -152,14 +159,14 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
       case 'taximetro':
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2 duration-400">
-            <Select 
-              name="mode" 
-              label="Modo de Registro" 
-              value={formData.mode || 'Sin Información'} 
+            <Select
+              name="mode"
+              label="Modo de Registro"
+              value={formData.mode || 'Sin Información'}
               options={[
-                {label: '--- Sin Información ---', value: 'Sin Información'},
-                {label: '📅 Nueva Fecha Vencimiento', value: 'Fecha'},
-                {label: '✗ Marcar como "No Aplica"', value: 'No Aplica'}
+                { label: '--- Sin Información ---', value: 'Sin Información' },
+                { label: '📅 Nueva Fecha Vencimiento', value: 'Fecha' },
+                { label: '✗ Marcar como "No Aplica"', value: 'No Aplica' }
               ]}
               {...commonProps}
             />
@@ -176,6 +183,12 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
           <div className="grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2 duration-400">
             <Input name="fecha" label="Nueva Fecha Vencimiento" type="date" value={toISODate(formData.fecha || '')} {...commonProps} />
             <Input name="extra" label={selectedDoc === 'permiso' ? 'Municipalidad' : 'Compañía / Lugar'} type="text" placeholder="Especificar..." value={formData.extra || ''} {...commonProps} />
+          </div>
+        );
+      case 'padron':
+        return (
+          <div className="max-w-xs animate-in fade-in slide-in-from-top-2 duration-400">
+            <Input name="fecha" label="Nueva Fecha Vencimiento" type="date" value={toISODate(formData.fecha || '')} {...commonProps} />
           </div>
         );
       case 'carnet':
@@ -199,7 +212,7 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-250px)] w-full py-4">
       <div className="bg-[#1B1F24] shadow-[0_30px_100px_rgba(0,0,0,0.5)] rounded-3xl overflow-hidden w-full max-w-2xl relative border border-white/5">
         <div className="absolute top-0 right-0 w-48 h-48 bg-[#C29329]/5 blur-[80px] rounded-full -mr-24 -mt-24"></div>
-        
+
         <div className="p-12 space-y-10 relative z-10">
           <div className="flex items-center justify-between border-b border-white/5 pb-8">
             <div className="flex items-center gap-4">
@@ -217,13 +230,13 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
             <div className="space-y-2">
               <Label text="01. Identificador de Activo" />
               <div className="relative">
-                <select 
-                  value={selectedMovil} 
+                <select
+                  value={selectedMovil}
                   onChange={(e) => setSelectedMovil(e.target.value)}
                   className="w-full pl-5 pr-10 py-4 bg-[#0A0C0E] border border-white/5 rounded-xl focus:border-[#C29329]/40 outline-none text-[11px] font-black text-zinc-200 appearance-none cursor-pointer hover:bg-black transition-all"
                 >
                   <option value="" className="bg-[#1B1F24]">ELEGIR MÓVIL...</option>
-                  {fleet.sort((a,b) => parseInt(a.id) - parseInt(b.id)).map(v => (
+                  {fleet.sort((a, b) => parseInt(a.id) - parseInt(b.id)).map(v => (
                     <option key={v.id} value={v.id} className="bg-[#1B1F24]">MÓVIL {v.id} · [{v.patente}]</option>
                   ))}
                 </select>
@@ -234,8 +247,8 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
             <div className="space-y-2">
               <Label text="02. Parámetro de Auditoría" />
               <div className="relative">
-                <select 
-                  value={selectedDoc} 
+                <select
+                  value={selectedDoc}
                   onChange={(e) => setSelectedDoc(e.target.value)}
                   className="w-full pl-5 pr-10 py-4 bg-[#0A0C0E] border border-white/5 rounded-xl focus:border-[#C29329]/40 outline-none text-[11px] font-bold text-zinc-200 appearance-none cursor-pointer hover:bg-black transition-all"
                 >
@@ -253,8 +266,8 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
             {selectedDoc ? (
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
-                   <div className="h-[1px] w-8 bg-zinc-800"></div>
-                   <span className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.5em]">Actualización de Registro Global</span>
+                  <div className="h-[1px] w-8 bg-zinc-800"></div>
+                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.5em]">Actualización de Registro Global</span>
                 </div>
                 {renderFields()}
               </div>
@@ -266,14 +279,13 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
             )}
           </div>
 
-          <button 
+          <button
             onClick={handleUpdate}
             disabled={!isFormValid}
-            className={`w-full py-5 rounded-xl font-black text-[11px] uppercase tracking-[0.3em] transition-all shadow-2xl flex items-center justify-center gap-3 ${
-              isFormValid 
-              ? 'btn-premium' 
-              : 'bg-white/[0.02] text-zinc-800 border border-white/[0.02] cursor-not-allowed'
-            }`}
+            className={`w-full py-5 rounded-xl font-black text-[11px] uppercase tracking-[0.3em] transition-all shadow-2xl flex items-center justify-center gap-3 ${isFormValid
+                ? 'btn-premium'
+                : 'bg-white/[0.02] text-zinc-800 border border-white/[0.02] cursor-not-allowed'
+              }`}
           >
             {success ? '✓ SINCRONIZACIÓN EXITOSA' : 'Ejecutar Comando de Sincronización'}
           </button>

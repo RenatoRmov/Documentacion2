@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { vehicleService } from './services/vehicleService';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import FleetTable from './components/FleetTable';
@@ -16,25 +17,30 @@ const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
-  // Inicializar datos desde localStorage o mock
-  useEffect(() => {
-    const saved = localStorage.getItem('radiomovil_fleet');
-    if (saved) {
-      try {
+  // Cargar datos desde Supabase
+  const loadFleet = async () => {
+    try {
+      const data = await vehicleService.fetchVehicles();
+      setFleet(data);
+    } catch (error) {
+      console.error("Error al cargar la flota:", error);
+      // Fallback a localStorage/Mock si falla Supabase en desarrollo
+      const saved = localStorage.getItem('radiomovil_fleet');
+      if (saved) {
         setFleet(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error al cargar la flota:", e);
+      } else {
         setFleet(MOCK_VEHICLES);
       }
-    } else {
-      setFleet(MOCK_VEHICLES);
-      localStorage.setItem('radiomovil_fleet', JSON.stringify(MOCK_VEHICLES));
     }
+  };
+
+  useEffect(() => {
+    loadFleet();
   }, []);
 
-  const saveFleet = (newFleet: Vehicle[]) => {
-    setFleet(newFleet);
-    localStorage.setItem('radiomovil_fleet', JSON.stringify(newFleet));
+  // Función auxiliar para actualizar estado local y recargar
+  const refreshFleet = async () => {
+    await loadFleet();
   };
 
   const handleAddVehicle = () => {
@@ -47,49 +53,59 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteVehicle = (id: string) => {
-    const newFleet = fleet.filter(v => v.id !== id);
-    saveFleet(newFleet);
-  };
-
-  const handleToggleStatus = (id: string) => {
-    const newFleet = fleet.map(v => {
-      if (v.id === id) {
-        const newStatus = v.statusOperativo === 'Activo' ? 'Inactivo' : 'Activo';
-        return { ...v, statusOperativo: newStatus as 'Activo' | 'Inactivo' };
+  const handleDeleteVehicle = async (id: string) => {
+    if (confirm('¿Estás seguro de eliminar este vehículo?')) {
+      try {
+        await vehicleService.deleteVehicle(id);
+        refreshFleet();
+      } catch (error) {
+        alert('Error al eliminar vehículo');
       }
-      return v;
-    });
-    saveFleet(newFleet);
-  };
-
-  const handleSaveVehicle = (vehicle: Vehicle) => {
-    const isEditing = editingVehicle !== null;
-    let newFleet;
-
-    if (isEditing) {
-      // Usamos el ID del vehículo que estábamos editando para encontrarlo y reemplazarlo
-      // Esto previene duplicados si se cambió el ID en el formulario
-      newFleet = fleet.map(v => v.id === editingVehicle.id ? vehicle : v);
-    } else {
-      // Si es nuevo, validamos que el ID no esté duplicado
-      if (fleet.find(v => v.id === vehicle.id)) {
-        alert(`El N° de Móvil ${vehicle.id} ya existe en el sistema.`);
-        return;
-      }
-      newFleet = [...fleet, vehicle];
     }
-    saveFleet(newFleet);
   };
 
-  const handleQuickUpdate = (vehicleId: string, updates: Partial<Vehicle>) => {
-    const newFleet = fleet.map(v => {
-      if (v.id === vehicleId) {
-        return { ...v, ...updates };
+  const handleToggleStatus = async (id: string) => {
+    const vehicle = fleet.find(v => v.id === id);
+    if (vehicle) {
+      const newStatus = vehicle.statusOperativo === 'Activo' ? 'Inactivo' : 'Activo';
+      try {
+        await vehicleService.updateVehicle(id, { statusOperativo: newStatus });
+        refreshFleet();
+      } catch (error) {
+        console.error('Error updating status:', error);
       }
-      return v;
-    });
-    saveFleet(newFleet);
+    }
+  };
+
+  const handleSaveVehicle = async (vehicle: Vehicle) => {
+    const isEditing = editingVehicle !== null;
+
+    try {
+      if (isEditing) {
+        await vehicleService.updateVehicle(editingVehicle.id, vehicle);
+      } else {
+        // Validar duplicados (aunque la DB tiene restricción UNIQUE)
+        if (fleet.find(v => v.id === vehicle.id)) {
+          alert(`El N° de Móvil ${vehicle.id} ya existe en el sistema.`);
+          return;
+        }
+        await vehicleService.createVehicle(vehicle);
+      }
+      refreshFleet();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      alert('Error al guardar el vehículo. Verifique que el N° de Móvil no esté duplicado.');
+    }
+  };
+
+  const handleQuickUpdate = async (vehicleId: string, updates: Partial<Vehicle>) => {
+    try {
+      await vehicleService.updateVehicle(vehicleId, updates);
+      refreshFleet();
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+    }
   };
 
   const renderContent = () => {
@@ -98,10 +114,10 @@ const App: React.FC = () => {
         return <Dashboard fleet={fleet} onSelectVehicle={handleEditVehicle} />;
       case 'fleet':
         return (
-          <FleetTable 
-            fleet={fleet} 
-            onEdit={handleEditVehicle} 
-            onAdd={handleAddVehicle} 
+          <FleetTable
+            fleet={fleet}
+            onEdit={handleEditVehicle}
+            onAdd={handleAddVehicle}
             onDelete={handleDeleteVehicle}
             onToggleStatus={handleToggleStatus}
           />
@@ -122,7 +138,7 @@ const App: React.FC = () => {
                 + Nuevo Móvil
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {fleet.filter(v => v.statusOperativo === 'Activo').map(v => (
                 <div key={v.id} className="bg-[#1B1F24] rounded-2xl border border-white/5 overflow-hidden flex flex-col hover:border-[#C29329]/30 transition-all group shadow-xl">
@@ -134,6 +150,16 @@ const App: React.FC = () => {
                     <button onClick={() => handleEditVehicle(v)} className="text-[8px] font-black text-zinc-600 hover:text-white transition-colors uppercase tracking-widest">Auditar</button>
                   </div>
                   <div className="p-6 space-y-4 flex-1 bg-black/5">
+                    <div className="flex justify-between items-center group/row">
+                      <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Padrón</span>
+                      <StatusBadge dateStr={v.vencimientoPadron} />
+                    </div>
+                    <div className="flex justify-between items-center group/row">
+                      <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">C. Antecedentes</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${v.certificadoAntecedentes === 'OK' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {v.certificadoAntecedentes || 'Sin Info'}
+                      </span>
+                    </div>
                     <div className="flex justify-between items-center group/row">
                       <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Revisión Técnica</span>
                       <StatusBadge dateStr={v.vencimientoRevisionTecnica} />
@@ -162,7 +188,7 @@ const App: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             {fleet.filter(v => v.statusOperativo === 'Activo').length === 0 && (
               <div className="p-32 text-center opacity-20">
                 <div className="text-4xl mb-4">📡</div>
@@ -179,9 +205,9 @@ const App: React.FC = () => {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {renderContent()}
-      <VehicleModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <VehicleModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onSave={handleSaveVehicle}
         initialData={editingVehicle}
       />

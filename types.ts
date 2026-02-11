@@ -10,19 +10,21 @@ export interface Vehicle {
   asientos: number;
   estado: 'Casa' | 'Externo';
   statusOperativo: 'Activo' | 'Inactivo'; // Nuevo estado operativo
-  
+
   // Datos del Propietario
   nombrePropietario: string;
   rutPropietario: string;
 
   // Documentación del Vehículo
+  vencimientoPadron: string; // Nuevo: Padrón
   vencimientoPermisoCirculacion: string;
   municipalidadPermiso: string;
   vencimientoRevisionTecnica: string;
   vencimientoSOAP: string;
   vencimientoControlTaximetro: string; // Fecha, "No Aplica" o "Sin Información"
-  
+
   // Nuevos Documentos RM
+  certificadoAntecedentes: 'OK' | 'No Aplica' | 'Sin Información'; // Nuevo
   prestacionSS: 'OK' | 'No Aplica' | 'Sin Información';
   contratoArriendo: 'OK' | 'No Aplica' | 'Sin Información';
 
@@ -33,20 +35,24 @@ export interface Vehicle {
   aseguradoraAsiento: string;
   vencimientoSeguroVidaConductor: string;
   aseguradoraVida: string;
-  
+
   // Conductor
   nombreConductor: string;
   rutConductor: string;
   fechaNacimiento: string;
   celular: string;
   email: string;
+  direccion: string;
+  comuna: string;
   claseLicencia: string;
-  
+  leyLicencia: string;
+  municipalidadLicencia: string;
+
   // Vigencias (Desde/Hasta)
   vigenciaCarnetDesde: string;
-  vigenciaCarnetHasta: string; 
+  vigenciaCarnetHasta: string;
   vigenciaLicenciaDesde: string;
-  vigenciaLicenciaHasta: string; 
+  vigenciaLicenciaHasta: string;
 }
 
 export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No Registra';
@@ -54,5 +60,5 @@ export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No
 export interface DashboardStats {
   totalVehicles: number;
   expiredCount: number;
-  warningCount: number; 
+  warningCount: number;
 }

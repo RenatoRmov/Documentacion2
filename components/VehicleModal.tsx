@@ -23,27 +23,27 @@ interface InputFieldProps {
 const InputField = ({ label, name, type = "text", required = false, placeholder = "", value, onChange, disabled = false }: InputFieldProps) => (
   <div className="space-y-2 flex-1 min-w-0">
     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block px-1 truncate">{label}</label>
-    <input 
-      required={required} 
+    <input
+      required={required}
       type={type}
-      name={name} 
-      value={value} 
-      onChange={onChange} 
+      name={name}
+      value={value}
+      onChange={onChange}
       placeholder={placeholder}
       disabled={disabled}
-      className={`w-full ${type === 'date' ? 'px-1.5 text-[10px]' : 'px-5 text-xs'} py-3.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0 ${disabled ? 'opacity-20 cursor-not-allowed' : ''}`} 
+      className={`w-full ${type === 'date' ? 'px-1.5 text-[10px]' : 'px-5 text-xs'} py-3.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0 ${disabled ? 'opacity-20 cursor-not-allowed' : ''}`}
     />
   </div>
 );
 
-const SelectField = ({ label, name, value, options, onChange }: { label: string, name: string, value: string, options: {label: string, value: string}[], onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void }) => (
+const SelectField = ({ label, name, value, options, onChange }: { label: string, name: string, value: string, options: { label: string, value: string }[], onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void }) => (
   <div className="space-y-2 flex-1 min-w-0">
     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block px-1 truncate">{label}</label>
     <div className="relative">
-      <select 
-        name={name} 
-        value={value} 
-        onChange={onChange} 
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
         className="w-full px-5 py-3.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-bold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all appearance-none text-xs"
       >
         {options.map(opt => (
@@ -73,13 +73,15 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
         id: '', patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: 2024, asientos: 5, estado: 'Externo', statusOperativo: 'Activo',
         nombrePropietario: '', rutPropietario: '',
         vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
-        vencimientoRevisionTecnica: '', vencimientoSOAP: '', 
+        vencimientoRevisionTecnica: '', vencimientoSOAP: '',
         vencimientoControlTaximetro: 'Sin Información',
+        certificadoAntecedentes: 'Sin Información',
         prestacionSS: 'Sin Información', contratoArriendo: 'Sin Información',
         vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
         vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
         vencimientoSeguroVidaConductor: '', aseguradoraVida: '',
-        nombreConductor: '', rutConductor: '', fechaNacimiento: '', celular: '', email: '', claseLicencia: '',
+        nombreConductor: '', rutConductor: '', fechaNacimiento: '', celular: '', email: '',
+        direccion: '', comuna: '', claseLicencia: '', leyLicencia: '', municipalidadLicencia: '',
         vigenciaCarnetDesde: '', vigenciaCarnetHasta: '',
         vigenciaLicenciaDesde: '', vigenciaLicenciaHasta: ''
       });
@@ -95,16 +97,34 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    let { name, value, type } = e.target;
+
+    // Normalización: Mayúsculas
+    if (type === 'text' || type === 'email' || e.target.tagName === 'SELECT') {
+      value = value.toUpperCase();
+    }
+
+    // Normalización: RUT
+    if ((name === 'rutPropietario' || name === 'rutConductor') && value.length > 1) {
+      let clean = value.replace(/[^0-9kK]/g, '').toUpperCase();
+      if (clean.length > 1) {
+        const body = clean.slice(0, -1);
+        const dv = clean.slice(-1);
+        value = `${body}-${dv}`;
+      } else {
+        value = clean;
+      }
+    }
+
     const finalValue = type === 'date' ? fromISODate(value) : value;
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
   const handleTaximetroToggle = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    setFormData(prev => ({ 
-      ...prev, 
-      vencimientoControlTaximetro: val === 'Sujeto' ? '' : val 
+    setFormData(prev => ({
+      ...prev,
+      vencimientoControlTaximetro: val === 'Sujeto' ? '' : val
     }));
   };
 
@@ -145,25 +165,39 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
               <InputField label="N° Móvil" name="id" required value={formData.id || ''} onChange={handleChange} />
               <InputField label="Patente" name="patente" required value={formData.patente || ''} onChange={handleChange} />
-              <SelectField 
-                label="Estado Operativo" 
-                name="statusOperativo" 
-                value={formData.statusOperativo || 'Activo'} 
+              <SelectField
+                label="Tipo"
+                name="tipo"
+                value={formData.tipo || ''}
                 onChange={handleChange}
-                options={[{label: 'Activo / En Servicio', value: 'Activo'}, {label: 'Inactivo / Fuera', value: 'Inactivo'}]}
+                options={[
+                  { label: 'Automóvil', value: 'AUTOMOVIL' },
+                  { label: 'Station Wagon', value: 'STATION WAGON' },
+                  { label: 'Minibus', value: 'MINIBUS' },
+                  { label: 'Taxi Ejecutivo', value: 'TAXI EJECUTIVO' }
+                ]}
+              />
+              <SelectField
+                label="Estado Operativo"
+                name="statusOperativo"
+                value={formData.statusOperativo || 'Activo'}
+                onChange={handleChange}
+                options={[{ label: 'Activo / En Servicio', value: 'Activo' }, { label: 'Inactivo / Fuera', value: 'Inactivo' }]}
               />
               <InputField label="Marca" name="marca" required value={formData.marca || ''} onChange={handleChange} />
               <InputField label="Modelo" name="modelo" required value={formData.modelo || ''} onChange={handleChange} />
               <InputField label="Color" name="color" required value={formData.color || ''} onChange={handleChange} />
               <InputField label="Capacidad" name="asientos" type="number" value={String(formData.asientos || '')} onChange={handleChange} />
-              <SelectField 
-                label="Categoría" 
-                name="estado" 
-                value={formData.estado || 'Externo'} 
+              <SelectField
+                label="Categoría"
+                name="estado"
+                value={formData.estado || 'Externo'}
                 onChange={handleChange}
-                options={[{label: 'Corporativo', value: 'Casa'}, {label: 'Externo', value: 'Externo'}]}
+                options={[{ label: 'Casa', value: 'Casa' }, { label: 'Externo', value: 'Externo' }]}
               />
               <InputField label="Año" name="año" type="number" value={String(formData.año || '')} onChange={handleChange} />
+              <InputField label="Nombre Propietario" name="nombrePropietario" value={formData.nombrePropietario || ''} onChange={handleChange} />
+              <InputField label="RUT Propietario" name="rutPropietario" value={formData.rutPropietario || ''} onChange={handleChange} />
             </div>
           </section>
 
@@ -172,6 +206,11 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
             <SectionTitle title="Vencimientos y Certificaciones" icon="📄" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-4">
+                <label className="text-[8px] font-black text-zinc-500 uppercase block border-b border-white/5 pb-2 tracking-[0.2em]">Padrón</label>
+                <InputField label="Vencimiento" name="vencimientoPadron" type="date" required value={toISODate(formData.vencimientoPadron || '')} onChange={handleChange} />
+              </div>
+
+              <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-4">
                 <label className="text-[8px] font-black text-zinc-500 uppercase block border-b border-white/5 pb-2 tracking-[0.2em]">P. Circulación</label>
                 <InputField label="Vencimiento" name="vencimientoPermisoCirculacion" type="date" required value={toISODate(formData.vencimientoPermisoCirculacion || '')} onChange={handleChange} />
                 <InputField label="Municipalidad" name="municipalidadPermiso" required value={formData.municipalidadPermiso || ''} onChange={handleChange} />
@@ -179,20 +218,20 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
 
               <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-4">
                 <label className="text-[8px] font-black text-zinc-500 uppercase block border-b border-white/5 pb-2 tracking-[0.2em]">Taxímetro</label>
-                <SelectField 
-                  label="Estado" 
-                  name="taximetro_toggle" 
-                  value={getTaximetroStatus()} 
+                <SelectField
+                  label="Estado"
+                  name="taximetro_toggle"
+                  value={getTaximetroStatus()}
                   onChange={handleTaximetroToggle}
                   options={taximetroOptions}
                 />
-                <InputField 
-                  label="Próx. Inspección" 
-                  name="vencimientoControlTaximetro" 
-                  type="date" 
+                <InputField
+                  label="Próx. Inspección"
+                  name="vencimientoControlTaximetro"
+                  type="date"
                   disabled={getTaximetroStatus() !== 'Sujeto'}
-                  value={getTaximetroStatus() === 'Sujeto' ? toISODate(formData.vencimientoControlTaximetro || '') : ''} 
-                  onChange={handleChange} 
+                  value={getTaximetroStatus() === 'Sujeto' ? toISODate(formData.vencimientoControlTaximetro || '') : ''}
+                  onChange={handleChange}
                 />
               </div>
 
@@ -200,7 +239,7 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                 <label className="text-[8px] font-black text-zinc-500 uppercase block border-b border-white/5 pb-2 tracking-[0.2em]">Rev. Técnica</label>
                 <InputField label="Fecha Límite" name="vencimientoRevisionTecnica" type="date" required value={toISODate(formData.vencimientoRevisionTecnica || '')} onChange={handleChange} />
               </div>
-              
+
               <div className="p-5 bg-black/20 rounded-2xl border border-white/5 space-y-4">
                 <label className="text-[8px] font-black text-zinc-500 uppercase block border-b border-white/5 pb-2 tracking-[0.2em]">Póliza SOAP</label>
                 <InputField label="Vencimiento" name="vencimientoSOAP" type="date" required value={toISODate(formData.vencimientoSOAP || '')} onChange={handleChange} />
@@ -213,27 +252,39 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
             <SectionTitle title="Contratos y Servicios Internos" icon="📁" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="p-6 bg-indigo-950/5 rounded-2xl border border-indigo-900/10 flex gap-6">
-                <SelectField 
-                  label="Prestación de Servicios" 
-                  name="prestacionSS" 
-                  value={formData.prestacionSS || 'Sin Información'} 
+                <SelectField
+                  label="Prestación de Servicios"
+                  name="prestacionSS"
+                  value={formData.prestacionSS || 'Sin Información'}
                   onChange={handleChange}
                   options={complianceOptions}
                 />
                 <div className="flex-1 flex items-center px-4">
-                   <p className="text-[8px] text-zinc-600 font-bold uppercase leading-relaxed italic">Documentación que acredita la relación de servicio con el operador.</p>
+                  <p className="text-[8px] text-zinc-600 font-bold uppercase leading-relaxed italic">Documentación que acredita la relación de servicio con el operador.</p>
                 </div>
               </div>
               <div className="p-6 bg-indigo-950/5 rounded-2xl border border-indigo-900/10 flex gap-6">
-                <SelectField 
-                  label="Contrato de Arriendo" 
-                  name="contratoArriendo" 
-                  value={formData.contratoArriendo || 'Sin Información'} 
+                <SelectField
+                  label="Certificado Antecedentes"
+                  name="certificadoAntecedentes"
+                  value={formData.certificadoAntecedentes || 'Sin Información'}
                   onChange={handleChange}
                   options={complianceOptions}
                 />
                 <div className="flex-1 flex items-center px-4">
-                   <p className="text-[8px] text-zinc-600 font-bold uppercase leading-relaxed italic">Contrato legal de arrendamiento del activo para su explotación comercial.</p>
+                  <p className="text-[8px] text-zinc-600 font-bold uppercase leading-relaxed italic">Certificado de antecedentes del conductor.</p>
+                </div>
+              </div>
+              <div className="p-6 bg-indigo-950/5 rounded-2xl border border-indigo-900/10 flex gap-6">
+                <SelectField
+                  label="Contrato de Arriendo"
+                  name="contratoArriendo"
+                  value={formData.contratoArriendo || 'Sin Información'}
+                  onChange={handleChange}
+                  options={complianceOptions}
+                />
+                <div className="flex-1 flex items-center px-4">
+                  <p className="text-[8px] text-zinc-600 font-bold uppercase leading-relaxed italic">Contrato legal de arrendamiento del activo para su explotación comercial.</p>
                 </div>
               </div>
             </div>
@@ -269,8 +320,11 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                 <InputField label="Nombre Completo" name="nombreConductor" required value={formData.nombreConductor || ''} onChange={handleChange} />
                 <InputField label="RUT Operador" name="rutConductor" required value={formData.rutConductor || ''} onChange={handleChange} />
                 <InputField label="Nacimiento" name="fechaNacimiento" type="date" required value={toISODate(formData.fechaNacimiento || '')} onChange={handleChange} />
+                <InputField label="Dirección" name="direccion" value={formData.direccion || ''} onChange={handleChange} />
+                <InputField label="Comuna" name="comuna" value={formData.comuna || ''} onChange={handleChange} />
+                <InputField label="Email" name="email" type="email" value={formData.email || ''} onChange={handleChange} />
               </div>
-              
+
               <div className="p-6 bg-emerald-950/5 rounded-2xl border border-emerald-900/10 space-y-5">
                 <label className="text-[8px] font-black text-emerald-800 uppercase block border-b border-emerald-900/20 pb-2 tracking-[0.2em]">Identidad (C.I.)</label>
                 <div className="flex gap-4">
@@ -286,6 +340,8 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                   <InputField label="Control" name="vigenciaLicenciaHasta" type="date" required value={toISODate(formData.vigenciaLicenciaHasta || '')} onChange={handleChange} />
                 </div>
                 <InputField label="Clase" name="claseLicencia" placeholder="A2, A3, B..." value={formData.claseLicencia || ''} onChange={handleChange} />
+                <InputField label="Municipalidad que otorga" name="municipalidadLicencia" value={formData.municipalidadLicencia || ''} onChange={handleChange} />
+                <InputField label="Ley Licencia" name="leyLicencia" placeholder="19.495" value={formData.leyLicencia || ''} onChange={handleChange} />
               </div>
             </div>
           </section>

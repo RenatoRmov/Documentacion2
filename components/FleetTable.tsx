@@ -14,7 +14,7 @@ interface FleetTableProps {
 
 const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete, onToggleStatus }) => {
   const [search, setSearch] = useState('');
-  const filtered = fleet.filter(v => 
+  const filtered = fleet.filter(v =>
     v.patente.toLowerCase().includes(search.toLowerCase()) ||
     v.nombreConductor.toLowerCase().includes(search.toLowerCase()) ||
     v.id.includes(search)
@@ -46,17 +46,17 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div className="relative group max-w-xl w-full">
           <span className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-[#C29329] transition-colors text-sm">🔍</span>
-          <input 
-            type="text" 
-            placeholder="Buscar por activo, patente o identificación de operador..." 
+          <input
+            type="text"
+            placeholder="Buscar por activo, patente o identificación de operador..."
             className="w-full pl-14 pr-6 py-4 bg-[#0A0C0E] border border-white/5 rounded-xl focus:outline-none focus:border-[#C29329]/30 transition-all text-[11px] font-medium text-zinc-300 placeholder:text-zinc-700 italic tracking-wide"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        
+
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={handleExportExcel}
             className="px-8 py-4 bg-emerald-950/20 border border-emerald-500/20 hover:border-emerald-500/50 text-emerald-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 group"
           >
@@ -78,6 +78,7 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
                 <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em]">Activo Fijo</th>
                 <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em]">Responsable</th>
                 <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em]">Rev. Técnica</th>
+                <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em]">Antecedentes</th>
                 <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em]">Licencia</th>
                 <th className="px-10 py-6 text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em] text-right">Gestión</th>
               </tr>
@@ -107,26 +108,31 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
                     <StatusBadge dateStr={v.vencimientoRevisionTecnica} />
                   </td>
                   <td className="px-10 py-7">
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${v.certificadoAntecedentes === 'OK' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                      {v.certificadoAntecedentes || 'Sin Info'}
+                    </span>
+                  </td>
+                  <td className="px-10 py-7">
                     <StatusBadge dateStr={v.vigenciaLicenciaHasta} />
                   </td>
                   <td className="px-10 py-7 text-right">
                     <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => onEdit(v)}
                         className="p-2.5 text-zinc-600 hover:text-[#C29329] bg-white/[0.02] hover:bg-[#C29329]/10 rounded-lg transition-all border border-white/5"
                         title="Auditar Ficha"
                       >
                         📂
                       </button>
-                      <button 
+                      <button
                         onClick={() => onToggleStatus(v.id)}
                         className={`p-2.5 rounded-lg transition-all border border-white/5 ${v.statusOperativo === 'Activo' ? 'text-zinc-600 hover:text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:text-emerald-400 bg-emerald-500/10'}`}
                         title={v.statusOperativo === 'Activo' ? 'Desactivar Móvil' : 'Reactivar Móvil'}
                       >
                         {v.statusOperativo === 'Activo' ? '🚫' : '✅'}
                       </button>
-                      <button 
-                        onClick={() => { if(window.confirm('¿ELIMINAR DEFINITIVAMENTE EL MÓVIL ' + v.id + '?')) onDelete(v.id); }}
+                      <button
+                        onClick={() => { if (window.confirm('¿ELIMINAR DEFINITIVAMENTE EL MÓVIL ' + v.id + '?')) onDelete(v.id); }}
                         className="p-2.5 text-zinc-600 hover:text-red-500 bg-white/[0.02] hover:bg-red-500/10 rounded-lg transition-all border border-white/5"
                         title="Borrar Registro"
                       >
@@ -139,7 +145,7 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
             </tbody>
           </table>
         </div>
-        
+
         {filtered.length === 0 && (
           <div className="p-40 text-center">
             <div className="text-4xl mb-6 opacity-5">🔍</div>
