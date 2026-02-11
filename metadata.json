@@ -1,0 +1,7 @@
+{
+  "name": "RadioMovil Fleet Manager",
+  "description": "Una aplicación web profesional para la gestión de flota de radiotaxis, centrada en el control de vencimientos de documentos, gestión de conductores y optimización de procesos operativos.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
