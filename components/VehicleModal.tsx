@@ -74,9 +74,9 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
         nombrePropietario: '', rutPropietario: '',
         vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
         vencimientoRevisionTecnica: '', vencimientoSOAP: '',
-        vencimientoControlTaximetro: 'Sin Información',
-        certificadoAntecedentes: 'Sin Información',
-        prestacionSS: 'Sin Información', contratoArriendo: 'Sin Información',
+        vencimientoControlTaximetro: 'SIN INFORMACIÓN',
+        certificadoAntecedentes: 'SIN INFORMACIÓN',
+        prestacionSS: 'SIN INFORMACIÓN', contratoArriendo: 'SIN INFORMACIÓN',
         vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
         vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
         vencimientoSeguroVidaConductor: '', aseguradoraVida: '',
@@ -124,27 +124,27 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
     const val = e.target.value;
     setFormData(prev => ({
       ...prev,
-      vencimientoControlTaximetro: val === 'Sujeto' ? '' : val
+      vencimientoControlTaximetro: val === 'SUJETO' ? '' : val
     }));
   };
 
   const complianceOptions = [
-    { label: '--- Sin Información ---', value: 'Sin Información' },
+    { label: '--- Sin Información ---', value: 'SIN INFORMACIÓN' },
     { label: '✓ OK / Vigente', value: 'OK' },
-    { label: '✗ No Aplica', value: 'No Aplica' }
+    { label: '✗ No Aplica', value: 'NO APLICA' }
   ];
 
   const taximetroOptions = [
-    { label: '--- Sin Información ---', value: 'Sin Información' },
-    { label: '📅 Sujeto a Control', value: 'Sujeto' },
-    { label: '✗ No Aplica', value: 'No Aplica' }
+    { label: '--- Sin Información ---', value: 'SIN INFORMACIÓN' },
+    { label: '📅 Sujeto a Control', value: 'SUJETO' },
+    { label: '✗ No Aplica', value: 'NO APLICA' }
   ];
 
   const getTaximetroStatus = () => {
     const val = formData.vencimientoControlTaximetro;
-    if (val === 'No Aplica') return 'No Aplica';
-    if (val === 'Sin Información' || !val && val !== '') return 'Sin Información';
-    return 'Sujeto';
+    if (val === 'NO APLICA') return 'NO APLICA';
+    if (val === 'SIN INFORMACIÓN' || !val && val !== '') return 'SIN INFORMACIÓN';
+    return 'SUJETO';
   };
 
   return (
@@ -173,6 +173,7 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                 options={[
                   { label: 'Automóvil', value: 'AUTOMOVIL' },
                   { label: 'Station Wagon', value: 'STATION WAGON' },
+                  { label: 'SUV', value: 'SUV' },
                   { label: 'Minibus', value: 'MINIBUS' },
                   { label: 'Taxi Ejecutivo', value: 'TAXI EJECUTIVO' }
                 ]}
@@ -229,8 +230,8 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                   label="Próx. Inspección"
                   name="vencimientoControlTaximetro"
                   type="date"
-                  disabled={getTaximetroStatus() !== 'Sujeto'}
-                  value={getTaximetroStatus() === 'Sujeto' ? toISODate(formData.vencimientoControlTaximetro || '') : ''}
+                  disabled={getTaximetroStatus() !== 'SUJETO'}
+                  value={getTaximetroStatus() === 'SUJETO' ? toISODate(formData.vencimientoControlTaximetro || '') : ''}
                   onChange={handleChange}
                 />
               </div>

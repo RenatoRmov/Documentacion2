@@ -89,13 +89,17 @@ const App: React.FC = () => {
           alert(`El N° de Móvil ${vehicle.id} ya existe en el sistema.`);
           return;
         }
+        if (fleet.find(v => v.patente === vehicle.patente)) {
+          alert(`La Patente ${vehicle.patente} ya existe en el sistema asociada a otro móvil.`);
+          return;
+        }
         await vehicleService.createVehicle(vehicle);
       }
       refreshFleet();
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving vehicle:', error);
-      alert('Error al guardar el vehículo. Verifique que el N° de Móvil no esté duplicado.');
+      alert('Error al guardar el vehículo. Verifique que el N° de Móvil o la Patente no estén duplicados.');
     }
   };
 
