@@ -3,26 +3,32 @@ import React, { useState } from 'react';
 import { Vehicle, NotificationSettings } from '../types';
 
 const PRIORITY_DOCS = [
-  { key: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación', important: true },
-  { key: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica',        important: true },
-  { key: 'vencimientoSOAP',              label: 'SOAP',                    important: true },
-  { key: 'vencimientoPadron',            label: 'Padrón',                  important: true },
-  { key: 'vencimientoSeguroAccidentes',  label: 'Seguro Accidentes',       important: true },
-  { key: 'vencimientoSeguroAsiento',     label: 'Seguro Asiento',          important: true },
-  { key: 'vencimientoControlTaximetro',  label: 'Control Taxímetro',       important: false },
-  { key: 'vencimientoSeguroVidaConductor', label: 'Seguro Vida Conductor', important: false },
-  { key: 'vigenciaLicenciaHasta',        label: 'Licencia Conductor',      important: false },
-  { key: 'vigenciaCarnetHasta',          label: 'Carnet Conductor',        important: false },
+  { key: 'vencimientoPermisoCirculacion',  label: 'Permiso de Circulación', important: true },
+  { key: 'vencimientoRevisionTecnica',     label: 'Revisión Técnica',       important: true },
+  { key: 'vencimientoSOAP',               label: 'SOAP',                   important: true },
+  { key: 'vencimientoPadron',             label: 'Padrón',                 important: true },
+  { key: 'vencimientoSeguroAccidentes',   label: 'Seguro Accidentes',      important: true },
+  { key: 'vencimientoSeguroAsiento',      label: 'Seguro Asiento',         important: true },
+  { key: 'vencimientoControlTaximetro',   label: 'Control Taxímetro',      important: false },
+  { key: 'vencimientoSeguroVidaConductor',label: 'Seguro Vida Conductor',  important: false },
+  { key: 'vigenciaLicenciaHasta',         label: 'Licencia Conductor',     important: false },
+  { key: 'vigenciaCarnetHasta',           label: 'Carnet Conductor',       important: false },
 ];
 
 const DAYS_OPTIONS = [7, 15, 30, 60];
 
 const DEFAULT_SETTINGS: NotificationSettings = {
-  enabled: false,
-  email:    { enabled: false, address: '' },
-  whatsapp: { enabled: false, number: '', apiKey: '' },
-  priorityDocs: PRIORITY_DOCS.filter(d => d.important).map(d => d.key),
-  daysInAdvance: [15, 30],
+  enabled:        false,
+  email:          { enabled: false, address: '' },
+  whatsapp:       { enabled: false, number: '', apiKey: '' },
+  priorityDocs:   PRIORITY_DOCS.filter(d => d.important).map(d => d.key),
+  daysInAdvance:  [15, 30],
+  includeMissing: true,
+  companyName:     '',
+  adminName:       '',
+  adminTitle:      '',
+  contactEmail:    '',
+  contactWhatsApp: '',
 };
 
 function loadSettings(): NotificationSettings {
@@ -35,7 +41,6 @@ function loadSettings(): NotificationSettings {
 
 function getDaysUntil(dateStr: string): number | null {
   if (!dateStr || dateStr === 'No Aplica' || dateStr === 'Sin Información' || !dateStr.trim()) return null;
-  // Vehicle dates are stored as DD-MM-YYYY in the frontend type; convert to ISO before parsing
   let iso = dateStr;
   if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
     const [d, m, y] = dateStr.split('-');
@@ -54,30 +59,54 @@ interface VehicleGroup {
   conductor: string;
   email:     string | null;
   celular:   string | null;
-  alerts:    { doc: string; days: number }[];
+  expired:   { label: string; days: number }[];
+  upcoming:  { label: string; days: number }[];
+  missing:   string[];
 }
 
 function computeVehicleGroups(fleet: Vehicle[], settings: NotificationSettings): VehicleGroup[] {
-  if (!settings.priorityDocs.length || !settings.daysInAdvance.length) return [];
-  const maxDays = Math.max(...settings.daysInAdvance);
+  if (!settings.priorityDocs.length) return [];
+  const maxDays = settings.daysInAdvance.length ? Math.max(...settings.daysInAdvance) : 30;
   const groups: VehicleGroup[] = [];
 
   for (const v of fleet.filter(v => v.statusOperativo === 'Activo')) {
-    const docAlerts: { doc: string; days: number }[] = [];
+    const expired:  { label: string; days: number }[] = [];
+    const upcoming: { label: string; days: number }[] = [];
+    const missing:  string[] = [];
+
     for (const key of settings.priorityDocs) {
-      const days = getDaysUntil((v as unknown as Record<string, string>)[key]);
-      if (days !== null && days <= maxDays) {
-        docAlerts.push({ doc: PRIORITY_DOCS.find(d => d.key === key)?.label ?? key, days });
+      const label   = PRIORITY_DOCS.find(d => d.key === key)?.label ?? key;
+      const rawVal  = (v as unknown as Record<string, string>)[key] ?? '';
+      const trimmed = rawVal.trim().toLowerCase();
+
+      if (trimmed === 'no aplica') continue;
+
+      if (!rawVal.trim() || trimmed === 'sin información' || trimmed === 'sin informacion') {
+        if (settings.includeMissing) missing.push(label);
+        continue;
       }
+
+      const days = getDaysUntil(rawVal);
+      if (days === null) {
+        if (settings.includeMissing) missing.push(label);
+        continue;
+      }
+
+      if (days < 0)             expired.push({ label, days });
+      else if (days <= maxDays) upcoming.push({ label, days });
     }
-    if (docAlerts.length === 0) continue;
+
+    if (expired.length === 0 && upcoming.length === 0 && missing.length === 0) continue;
+
     groups.push({
       vehicleId: v.id,
       patente:   v.patente,
       conductor: v.nombreConductor || 'Sin nombre',
-      email:     v.email || null,
-      celular:   v.celular || null,
-      alerts:    docAlerts.sort((a, b) => a.days - b.days),
+      email:     v.email    || null,
+      celular:   v.celular  || null,
+      expired,
+      upcoming,
+      missing,
     });
   }
   return groups;
@@ -88,26 +117,33 @@ const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void; size?: 'sm
   const thumb  = size === 'lg' ? 'h-5 w-5'  : 'h-3.5 w-3.5';
   const travel = size === 'lg' ? 'translate-x-8' : 'translate-x-[22px]';
   return (
-    <button
-      onClick={() => onChange(!on)}
-      className={`relative inline-flex items-center rounded-full transition-all duration-300 focus:outline-none ${track} ${on ? 'bg-[#C29329]' : 'bg-zinc-700'}`}
-    >
+    <button onClick={() => onChange(!on)} className={`relative inline-flex items-center rounded-full transition-all duration-300 focus:outline-none ${track} ${on ? 'bg-[#C29329]' : 'bg-zinc-700'}`}>
       <span className={`inline-block rounded-full bg-white shadow transition-transform duration-300 ${thumb} ${on ? travel : 'translate-x-1'}`} />
     </button>
   );
 };
 
+const Field: React.FC<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }> = ({ label, value, onChange, placeholder, type = 'text' }) => (
+  <div>
+    <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-2">{label}</label>
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#C29329]/50 transition-colors" />
+  </div>
+);
+
 const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
-  const [s, setS] = useState<NotificationSettings>(loadSettings);
+  const [s, setS]             = useState<NotificationSettings>(loadSettings);
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved]     = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  const groups = computeVehicleGroups(fleet, s);
-  const totalAlerts = groups.reduce((sum, g) => sum + g.alerts.length, 0);
+  const groups      = computeVehicleGroups(fleet, s);
   const withEmail   = groups.filter(g => g.email).length;
   const withoutEmail = groups.filter(g => !g.email).length;
+  const totalExp    = groups.reduce((n, g) => n + g.expired.length, 0);
+  const totalUpco   = groups.reduce((n, g) => n + g.upcoming.length, 0);
+  const totalMiss   = groups.reduce((n, g) => n + g.missing.length, 0);
 
   const patch = (partial: Partial<NotificationSettings>) => setS(prev => ({ ...prev, ...partial }));
 
@@ -131,19 +167,15 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
         body: JSON.stringify({ fleet, settings: s, test }),
       });
       const data = await res.json();
-      if (res.ok) {
-        const parts: string[] = [];
-        if (test) {
-          if (data.emailsSent > 0) parts.push(`Email de prueba enviado al administrador`);
-        } else {
-          if (data.emailsSent  > 0) parts.push(`${data.emailsSent} email(s) enviado(s) a conductores`);
-          if (data.emailsSkipped > 0) parts.push(`${data.emailsSkipped} sin correo registrado`);
-        }
-        if (data.errors?.length > 0) parts.push(...data.errors);
-        setSendResult({ ok: data.errors?.length === 0, msg: parts.join(' · ') || 'Sin alertas pendientes' });
+      const parts: string[] = [];
+      if (test) {
+        if (data.emailsSent > 0) parts.push('Email de prueba enviado al administrador');
       } else {
-        setSendResult({ ok: false, msg: data.error ?? 'Error desconocido' });
+        if (data.emailsSent   > 0) parts.push(`${data.emailsSent} email(s) enviado(s) a conductores`);
+        if (data.emailsSkipped > 0) parts.push(`${data.emailsSkipped} sin correo registrado`);
       }
+      if (data.errors?.length > 0) parts.push(...data.errors);
+      setSendResult({ ok: res.ok && data.errors?.length === 0, msg: parts.join(' · ') || 'Sin alertas pendientes' });
     } catch (e: unknown) {
       setSendResult({ ok: false, msg: `Error de conexión: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -194,41 +226,33 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
               <Toggle on={s.email.enabled} onChange={v => setS(p => ({ ...p, email: { ...p.email, enabled: v } }))} />
             </div>
             <div className={`p-6 space-y-4 transition-opacity ${s.email.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-
-              {/* Info box */}
               <div className="bg-emerald-950/30 border border-emerald-700/20 rounded-xl p-4">
                 <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Cómo funciona</p>
                 <p className="text-[8px] text-zinc-400 leading-relaxed">
-                  Cada conductor recibe un email personalizado con solo los vencimientos de <strong className="text-zinc-200">su vehículo</strong>, enviado al correo registrado en su ficha.
+                  Cada conductor recibe un email personalizado con VENCIDOS, POR VENCER y SIN REGISTRO de <strong className="text-zinc-200">su vehículo</strong>.
                 </p>
               </div>
-
-              <div>
-                <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-2">
-                  Copia al administrador (CC opcional)
-                </label>
-                <input
-                  type="email"
-                  value={s.email.address}
-                  onChange={e => setS(p => ({ ...p, email: { ...p.email, address: e.target.value } }))}
-                  placeholder="admin@radiomovil.cl"
-                  className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#C29329]/50 transition-colors"
-                />
-                <p className="text-[7px] text-zinc-600 mt-1.5 uppercase tracking-widest">
-                  Si lo completas, recibirás también un resumen completo con todos los vehículos.
-                </p>
-              </div>
-
-              <div className="bg-amber-950/30 border border-amber-700/20 rounded-xl p-4 space-y-1">
-                <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Configuración requerida en Vercel</p>
-                <p className="text-[8px] text-zinc-500">
-                  Agrega la variable <span className="text-zinc-200 font-bold font-mono">RESEND_API_KEY</span> en tu proyecto de Vercel.
-                </p>
-                <p className="text-[8px] text-zinc-600 mt-1">
-                  Regístrate gratis en <span className="text-[#C29329]">resend.com</span> → API Keys → Create Key
-                </p>
+              <Field label="Copia al administrador (CC, para recibir prueba)"
+                value={s.email.address} type="email" placeholder="admin@radiomovil.cl"
+                onChange={v => setS(p => ({ ...p, email: { ...p.email, address: v } }))} />
+              <div className="bg-amber-950/30 border border-amber-700/20 rounded-xl p-4">
+                <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1">Requiere en Vercel</p>
+                <p className="text-[8px] text-zinc-500">Variable <span className="text-zinc-200 font-bold font-mono">RESEND_API_KEY</span> → regístrate en <span className="text-[#C29329]">resend.com</span></p>
               </div>
             </div>
+          </div>
+
+          {/* FIRMA DEL EMAIL */}
+          <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl space-y-4">
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Firma del Email</p>
+              <p className="text-[8px] text-zinc-600 uppercase tracking-widest">Datos que aparecen en el cuerpo del email al conductor</p>
+            </div>
+            <Field label="Nombre de la empresa"    value={s.companyName}     placeholder="Radiomóvil Nueva Huechuraba" onChange={v => patch({ companyName: v })} />
+            <Field label="Nombre del responsable"  value={s.adminName}       placeholder="Renato Jesús Oliva Aguirre"  onChange={v => patch({ adminName: v })} />
+            <Field label="Cargo"                   value={s.adminTitle}      placeholder="Encargado de Procesos"        onChange={v => patch({ adminTitle: v })} />
+            <Field label="Correo de contacto (para conductores)" value={s.contactEmail} type="email" placeholder="renato.oliva@radiomovil.cl" onChange={v => patch({ contactEmail: v })} />
+            <Field label="WhatsApp de contacto"    value={s.contactWhatsApp} placeholder="+56 9 5405 7893"             onChange={v => patch({ contactWhatsApp: v })} />
           </div>
 
           {/* WHATSAPP */}
@@ -238,54 +262,23 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
                 <span className="text-2xl">📱</span>
                 <div>
                   <p className="text-xs font-black text-white uppercase tracking-widest">WhatsApp Admin</p>
-                  <p className="text-[8px] text-zinc-600 uppercase tracking-widest">CallMeBot — resumen al administrador</p>
+                  <p className="text-[8px] text-zinc-600 uppercase tracking-widest">Resumen al administrador vía CallMeBot</p>
                 </div>
               </div>
               <Toggle on={s.whatsapp.enabled} onChange={v => setS(p => ({ ...p, whatsapp: { ...p.whatsapp, enabled: v } }))} />
             </div>
             <div className={`p-6 space-y-4 transition-opacity ${s.whatsapp.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-
-              <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
-                <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Nota</p>
-                <p className="text-[8px] text-zinc-500 leading-relaxed">
-                  El WhatsApp envía un <strong className="text-zinc-300">resumen general</strong> a tu número registrado, no a cada conductor.
-                  Para notificar conductores por WhatsApp, cada uno debería activar CallMeBot en su propio teléfono.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-2">Tu número (con código país, sin +)</label>
-                <input
-                  type="text"
-                  value={s.whatsapp.number}
-                  onChange={e => setS(p => ({ ...p, whatsapp: { ...p.whatsapp, number: e.target.value } }))}
-                  placeholder="56912345678"
-                  className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#C29329]/50 transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-2">API Key de CallMeBot</label>
-                <input
-                  type="text"
-                  value={s.whatsapp.apiKey}
-                  onChange={e => setS(p => ({ ...p, whatsapp: { ...p.whatsapp, apiKey: e.target.value } }))}
-                  placeholder="1234567"
-                  className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2.5 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#C29329]/50 transition-colors"
-                />
-              </div>
-              <button
-                onClick={() => setShowGuide(!showGuide)}
-                className="text-[8px] font-black text-[#C29329] hover:text-amber-400 uppercase tracking-widest transition-colors"
-              >
-                {showGuide ? '▲ Ocultar guía de activación' : '▼ ¿Cómo obtener mi API key?'}
+              <Field label="Tu número (con código país, sin +)" value={s.whatsapp.number} placeholder="56912345678" onChange={v => setS(p => ({ ...p, whatsapp: { ...p.whatsapp, number: v } }))} />
+              <Field label="API Key de CallMeBot" value={s.whatsapp.apiKey} placeholder="1234567" onChange={v => setS(p => ({ ...p, whatsapp: { ...p.whatsapp, apiKey: v } }))} />
+              <button onClick={() => setShowGuide(!showGuide)} className="text-[8px] font-black text-[#C29329] hover:text-amber-400 uppercase tracking-widest transition-colors">
+                {showGuide ? '▲ Ocultar guía' : '▼ ¿Cómo obtener mi API key?'}
               </button>
               {showGuide && (
                 <div className="bg-black/20 rounded-xl p-5 space-y-3 border border-white/5">
-                  <p className="text-[8px] font-black text-[#C29329] uppercase tracking-widest">Activación en 3 pasos (1 vez)</p>
                   {[
-                    { n: '1', t: 'Guarda el número +34 644 49 87 38 en tus contactos de WhatsApp con el nombre "CallMeBot".' },
-                    { n: '2', t: 'Envíale el mensaje exacto: "I allow callmebot to send me messages"' },
-                    { n: '3', t: 'Recibirás tu API key por WhatsApp automáticamente. Cópiala en el campo de arriba.' },
+                    { n: '1', t: 'Guarda el número +34 644 49 87 38 en tus contactos como "CallMeBot".' },
+                    { n: '2', t: 'Envíale: "I allow callmebot to send me messages"' },
+                    { n: '3', t: 'Recibirás tu API key por WhatsApp. Cópiala arriba.' },
                   ].map(({ n, t }) => (
                     <div key={n} className="flex gap-3 items-start">
                       <span className="text-[#C29329] font-black text-[10px] mt-0.5 shrink-0">{n}.</span>
@@ -296,218 +289,160 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
               )}
             </div>
           </div>
-
-          {/* DÍAS DE ANTICIPACIÓN */}
-          <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl">
-            <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Anticipación de Alertas</p>
-            <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-5">
-              Avisar cuando falten estos días para el vencimiento
-            </p>
-            <div className="flex gap-3 flex-wrap">
-              {DAYS_OPTIONS.map(day => (
-                <button
-                  key={day}
-                  onClick={() => toggleDay(day)}
-                  className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${
-                    s.daysInAdvance.includes(day)
-                      ? 'bg-[#C29329]/20 border-[#C29329]/50 text-[#C29329]'
-                      : 'bg-black/20 border-white/5 text-zinc-600 hover:text-zinc-400 hover:border-white/10'
-                  }`}
-                >
-                  {day} días
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* ── RIGHT COLUMN ── */}
         <div className="space-y-6">
 
-          {/* DOCUMENTOS PRIORITARIOS */}
+          {/* DOCUMENTOS */}
           <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl">
             <div className="flex justify-between items-center mb-5">
               <div>
                 <p className="text-xs font-black text-white uppercase tracking-widest">Documentos a Monitorear</p>
                 <p className="text-[8px] text-zinc-600 uppercase tracking-widest mt-1">Solo los seleccionados generan alertas</p>
               </div>
-              <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                {s.priorityDocs.length}/{PRIORITY_DOCS.length}
-              </span>
+              <span className="text-[8px] font-black text-zinc-500">{s.priorityDocs.length}/{PRIORITY_DOCS.length}</span>
             </div>
             <div className="space-y-2">
               {PRIORITY_DOCS.map(doc => {
                 const active = s.priorityDocs.includes(doc.key);
                 return (
-                  <button
-                    key={doc.key}
-                    onClick={() => toggleDoc(doc.key)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border text-left ${
-                      active ? 'bg-[#C29329]/10 border-[#C29329]/30' : 'bg-black/10 border-white/5 hover:border-white/10'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
-                      active ? 'bg-[#C29329] border-[#C29329]' : 'border-zinc-700'
-                    }`}>
-                      {active && (
-                        <svg viewBox="0 0 10 8" className="w-2.5 h-2.5" fill="none">
-                          <path d="M1 4L3.5 6.5L9 1" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
+                  <button key={doc.key} onClick={() => toggleDoc(doc.key)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border text-left ${active ? 'bg-[#C29329]/10 border-[#C29329]/30' : 'bg-black/10 border-white/5 hover:border-white/10'}`}>
+                    <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${active ? 'bg-[#C29329] border-[#C29329]' : 'border-zinc-700'}`}>
+                      {active && <svg viewBox="0 0 10 8" className="w-2.5 h-2.5" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                     </div>
-                    <span className={`text-[9px] font-bold uppercase tracking-widest flex-1 transition-colors ${active ? 'text-white' : 'text-zinc-500'}`}>
-                      {doc.label}
-                    </span>
-                    {doc.important && (
-                      <span className="text-[7px] font-black text-[#C29329]/60 uppercase tracking-widest">Clave</span>
-                    )}
+                    <span className={`text-[9px] font-bold uppercase tracking-widest flex-1 ${active ? 'text-white' : 'text-zinc-500'}`}>{doc.label}</span>
+                    {doc.important && <span className="text-[7px] font-black text-[#C29329]/60 uppercase tracking-widest">Clave</span>}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* NOTA CRON */}
+          {/* DÍAS + SIN REGISTRO */}
+          <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl space-y-5">
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Anticipación de Alertas</p>
+              <div className="flex gap-3 flex-wrap mt-3">
+                {DAYS_OPTIONS.map(day => (
+                  <button key={day} onClick={() => toggleDay(day)}
+                    className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${s.daysInAdvance.includes(day) ? 'bg-[#C29329]/20 border-[#C29329]/50 text-[#C29329]' : 'bg-black/20 border-white/5 text-zinc-600 hover:text-zinc-400'}`}>
+                    {day} días
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <div>
+                <p className="text-[9px] font-black text-white uppercase tracking-widest">Incluir Sin Registro</p>
+                <p className="text-[7px] text-zinc-600 uppercase tracking-widest mt-0.5">Avisar también sobre docs sin fecha cargada</p>
+              </div>
+              <Toggle on={s.includeMissing} onChange={v => patch({ includeMissing: v })} />
+            </div>
+          </div>
+
+          {/* CRON NOTE */}
           <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl">
             <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Cron Automático Diario</p>
             <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-4">Ejecuta a las 8:00 AM hora Chile</p>
-            <div className="space-y-2 text-[8px] text-zinc-500 leading-relaxed">
-              <p>Para alertas automáticas sin intervención manual, configura estas variables en <span className="text-zinc-300 font-bold">Vercel → Settings → Environment Variables</span>:</p>
-              <div className="bg-black/30 rounded-lg p-3 font-mono space-y-1 text-[8px] border border-white/5 mt-2">
-                <p><span className="text-[#C29329]">RESEND_API_KEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tu_clave_de_resend</span></p>
-                <p><span className="text-zinc-600 text-[7px]"># Opcional: CC resumen al admin</span></p>
-                <p><span className="text-[#C29329]">CRON_NOTIFY_EMAIL</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">admin@radiomovil.cl</span></p>
-                <p><span className="text-zinc-600 text-[7px]"># Opcional: WhatsApp admin</span></p>
-                <p><span className="text-[#C29329]">CRON_WA_NUMBER</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">56912345678</span></p>
-                <p><span className="text-[#C29329]">CRON_WA_APIKEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tu_apikey_callmebot</span></p>
-                <p><span className="text-[#C29329]">CRON_SECRET</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">clave_secreta_aleatoria</span></p>
-              </div>
-              <p className="text-zinc-600 text-[7px] mt-2">Los emails se envían al correo registrado en cada ficha de conductor. Vehículos sin correo registrado son omitidos.</p>
+            <div className="bg-black/30 rounded-lg p-3 font-mono space-y-1 text-[8px] border border-white/5">
+              <p><span className="text-[#C29329]">RESEND_API_KEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tu_clave_resend</span></p>
+              <p><span className="text-[#C29329]">CRON_COMPANY_NAME</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Radiomóvil Nueva Huechuraba</span></p>
+              <p><span className="text-[#C29329]">CRON_ADMIN_NAME</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Renato Jesús Oliva Aguirre</span></p>
+              <p><span className="text-[#C29329]">CRON_ADMIN_TITLE</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Encargado de Procesos</span></p>
+              <p><span className="text-[#C29329]">CRON_CONTACT_EMAIL</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">renato.oliva@radiomovil.cl</span></p>
+              <p><span className="text-[#C29329]">CRON_NOTIFY_EMAIL</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">admin@radiomovil.cl</span></p>
+              <p><span className="text-zinc-600 text-[7px]"># Opcionales:</span></p>
+              <p><span className="text-[#C29329]">CRON_WA_NUMBER</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">56912345678</span></p>
+              <p><span className="text-[#C29329]">CRON_WA_APIKEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tu_apikey_callmebot</span></p>
+              <p><span className="text-[#C29329]">CRON_SECRET</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">clave_secreta_aleatoria</span></p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* PREVIEW POR VEHÍCULO */}
+      {/* PREVIEW */}
       <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-6 shadow-xl">
         <div className="flex justify-between items-center mb-5">
           <div>
             <p className="text-xs font-black text-white uppercase tracking-widest">Vista Previa — Destinatarios</p>
-            <p className="text-[8px] text-zinc-600 uppercase tracking-widest mt-1">
-              Conductores que recibirían alerta con la configuración actual
-            </p>
+            <p className="text-[8px] text-zinc-600 uppercase tracking-widest mt-1">Conductores que recibirían alerta con la configuración actual</p>
           </div>
-          <div className="flex items-center gap-3">
-            {withoutEmail > 0 && (
-              <span className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-zinc-800 text-zinc-500">
-                {withoutEmail} sin correo
-              </span>
-            )}
-            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-              groups.length > 0 ? 'bg-red-900/30 text-red-400' : 'bg-emerald-900/20 text-emerald-600'
-            }`}>
-              {groups.length} vehículo{groups.length !== 1 ? 's' : ''} · {totalAlerts} alerta{totalAlerts !== 1 ? 's' : ''}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {totalExp  > 0 && <span className="px-2 py-1 rounded-full text-[8px] font-black bg-red-900/30 text-red-400">{totalExp} vencidos</span>}
+            {totalUpco > 0 && <span className="px-2 py-1 rounded-full text-[8px] font-black bg-orange-900/30 text-orange-400">{totalUpco} por vencer</span>}
+            {totalMiss > 0 && <span className="px-2 py-1 rounded-full text-[8px] font-black bg-zinc-800 text-zinc-500">{totalMiss} sin registro</span>}
+            {withoutEmail > 0 && <span className="px-2 py-1 rounded-full text-[8px] font-black bg-zinc-800 text-zinc-600">{withoutEmail} sin correo</span>}
+            <span className={`px-3 py-1 rounded-full text-[8px] font-black ${groups.length > 0 ? 'bg-red-900/30 text-red-400' : 'bg-emerald-900/20 text-emerald-600'}`}>
+              {groups.length} vehículo{groups.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
         {groups.length > 0 ? (
-          <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-            {groups.map((g, i) => {
-              const mostUrgent = g.alerts[0];
-              const expired = mostUrgent.days < 0;
-              const urgent  = !expired && mostUrgent.days <= 7;
-              return (
-                <div key={i} className={`rounded-xl border overflow-hidden ${
-                  expired ? 'border-red-800/30' : urgent ? 'border-orange-700/30' : 'border-yellow-800/20'
-                }`}>
-                  {/* Vehicle header */}
-                  <div className={`flex items-center justify-between px-4 py-3 ${
-                    expired ? 'bg-red-950/30' : urgent ? 'bg-orange-950/30' : 'bg-yellow-950/20'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${
-                        expired ? 'bg-red-900/60 text-red-400' : urgent ? 'bg-orange-900/60 text-orange-400' : 'bg-yellow-900/40 text-yellow-500'
-                      }`}>{g.vehicleId}</span>
-                      <span className="text-[9px] font-bold text-white uppercase tracking-wider">{g.patente}</span>
-                      <span className="text-[8px] text-zinc-500 truncate max-w-28">{g.conductor}</span>
-                    </div>
-                    <span className={`text-[8px] font-black uppercase ${expired ? 'text-red-500' : urgent ? 'text-orange-400' : 'text-yellow-500'}`}>
-                      {g.alerts.length} doc{g.alerts.length > 1 ? 's' : ''}
-                    </span>
+          <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
+            {groups.map((g, i) => (
+              <div key={i} className="rounded-xl border border-white/5 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-black/20">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-[#C29329]/20 text-[#C29329]">{g.vehicleId}</span>
+                    <span className="text-[9px] font-bold text-white uppercase tracking-wider">{g.patente}</span>
+                    <span className="text-[8px] text-zinc-400 truncate max-w-32">{g.conductor}</span>
                   </div>
-
-                  {/* Contact info + alerts */}
-                  <div className="px-4 py-3 bg-black/10 flex flex-wrap gap-x-6 gap-y-2 items-start">
-                    {/* Contact chips */}
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <span className={`flex items-center gap-1 text-[8px] font-bold px-2 py-0.5 rounded ${
-                        g.email ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'
-                      }`}>
-                        📧 {g.email ? g.email : 'Sin correo'}
-                      </span>
-                      <span className={`flex items-center gap-1 text-[8px] font-bold px-2 py-0.5 rounded ${
-                        g.celular ? 'bg-blue-900/30 text-blue-400' : 'bg-zinc-800 text-zinc-600'
-                      }`}>
-                        📱 {g.celular ? g.celular : 'Sin teléfono'}
-                      </span>
-                    </div>
-                    {/* Alert list */}
-                    <div className="flex flex-wrap gap-2 flex-1">
-                      {g.alerts.map((a, ai) => (
-                        <span key={ai} className="text-[7px] font-black uppercase tracking-widest text-zinc-500 bg-black/20 px-2 py-0.5 rounded border border-white/5">
-                          {a.doc} · {a.days < 0 ? `Vencido ${Math.abs(a.days)}d` : a.days === 0 ? 'Hoy' : `${a.days}d`}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="flex gap-1.5">
+                    {g.expired.length  > 0 && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-red-900/40 text-red-400">{g.expired.length} venc.</span>}
+                    {g.upcoming.length > 0 && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-orange-900/40 text-orange-400">{g.upcoming.length} próx.</span>}
+                    {g.missing.length  > 0 && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{g.missing.length} falt.</span>}
                   </div>
                 </div>
-              );
-            })}
+                {/* Contact + alerts */}
+                <div className="px-4 py-3 bg-black/10 space-y-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <span className={`text-[8px] font-bold px-2 py-0.5 rounded ${g.email ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'}`}>
+                      📧 {g.email ?? 'Sin correo'}
+                    </span>
+                    <span className={`text-[8px] font-bold px-2 py-0.5 rounded ${g.celular ? 'bg-blue-900/30 text-blue-400' : 'bg-zinc-800 text-zinc-600'}`}>
+                      📱 {g.celular ?? 'Sin teléfono'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.expired.map( (a, ai) => <span key={`e${ai}`} className="text-[7px] font-black px-2 py-0.5 rounded bg-red-950/40 text-red-400 border border-red-800/20">{a.label} · {Math.abs(a.days)}d vencido</span>)}
+                    {g.upcoming.map((a, ai) => <span key={`u${ai}`} className="text-[7px] font-black px-2 py-0.5 rounded bg-orange-950/30 text-orange-400 border border-orange-800/20">{a.label} · {a.days}d</span>)}
+                    {g.missing.map( (l, ai) => <span key={`m${ai}`} className="text-[7px] font-black px-2 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-white/5">{l} · sin fecha</span>)}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="py-14 text-center opacity-25">
             <p className="text-4xl mb-3">✓</p>
-            <p className="text-[9px] font-black uppercase tracking-widest">Sin alertas pendientes con la configuración actual</p>
+            <p className="text-[9px] font-black uppercase tracking-widest">Sin alertas con la configuración actual</p>
           </div>
         )}
       </div>
 
-      {/* FEEDBACK */}
       {sendResult && (
-        <div className={`p-4 rounded-xl border text-[9px] font-black uppercase tracking-widest ${
-          sendResult.ok
-            ? 'bg-emerald-900/20 border-emerald-700/30 text-emerald-400'
-            : 'bg-red-900/20 border-red-700/30 text-red-400'
-        }`}>
+        <div className={`p-4 rounded-xl border text-[9px] font-black uppercase tracking-widest ${sendResult.ok ? 'bg-emerald-900/20 border-emerald-700/30 text-emerald-400' : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
           {sendResult.ok ? '✓ ' : '✕ '}{sendResult.msg}
         </div>
       )}
 
-      {/* ACTION BAR */}
       <div className="flex flex-wrap gap-3 justify-end">
-        <button
-          onClick={handleSave}
-          className="btn-premium px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
-        >
+        <button onClick={handleSave} className="btn-premium px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">
           {saved ? '✓ Guardado' : 'Guardar Configuración'}
         </button>
-        <button
-          onClick={() => handleSend(true)}
-          disabled={isSending}
-          className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        <button onClick={() => handleSend(true)} disabled={isSending}
+          className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30">
           Enviar Prueba
         </button>
-        <button
-          onClick={() => handleSend(false)}
-          disabled={isSending || !s.enabled}
-          className="px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        <button onClick={() => handleSend(false)} disabled={isSending || !s.enabled}
+          className="px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
           {isSending ? 'Enviando...' : 'Enviar Ahora'}
         </button>
       </div>
-
     </div>
   );
 };

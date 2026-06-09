@@ -67,7 +67,7 @@ export interface NotificationSettings {
   enabled: boolean;
   email: {
     enabled: boolean;
-    address: string;
+    address: string; // admin CC
   };
   whatsapp: {
     enabled: boolean;
@@ -76,4 +76,10 @@ export interface NotificationSettings {
   };
   priorityDocs: string[];
   daysInAdvance: number[];
+  includeMissing: boolean;  // also notify about docs with no date registered
+  companyName:     string;
+  adminName:       string;
+  adminTitle:      string;
+  contactEmail:    string;  // shown in email body for conductors to reply to
+  contactWhatsApp: string;  // shown in email body (formatted, e.g. "+56 9 5405 7893")
 }
