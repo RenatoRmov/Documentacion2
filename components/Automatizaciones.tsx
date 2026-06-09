@@ -35,11 +35,17 @@ function loadSettings(): NotificationSettings {
 
 function getDaysUntil(dateStr: string): number | null {
   if (!dateStr || dateStr === 'No Aplica' || dateStr === 'Sin Información' || !dateStr.trim()) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
+  // Vehicle dates are stored as DD-MM-YYYY in the frontend type; convert to ISO before parsing
+  let iso = dateStr;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    const [d, m, y] = dateStr.split('-');
+    iso = `${y}-${m}-${d}`;
+  }
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Math.ceil((d.getTime() - today.getTime()) / 86_400_000);
+  return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
 }
 
 interface VehicleGroup {

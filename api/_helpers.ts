@@ -44,11 +44,17 @@ export interface VehicleAlertGroup {
 
 export function getDaysUntil(dateStr: string): number | null {
   if (!dateStr || dateStr === 'No Aplica' || dateStr === 'Sin Información') return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
+  // Accept both YYYY-MM-DD (Supabase) and DD-MM-YYYY (frontend Vehicle type)
+  let iso = dateStr;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    const [d, m, y] = dateStr.split('-');
+    iso = `${y}-${m}-${d}`;
+  }
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Math.ceil((d.getTime() - today.getTime()) / 86_400_000);
+  return Math.ceil((date.getTime() - today.getTime()) / 86_400_000);
 }
 
 // Works with both camelCase (frontend Vehicle) and snake_case (Supabase raw row)
