@@ -27,17 +27,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const key = process.env.RESEND_API_KEY;
     if (!key) {
       errors.push('Email: variable RESEND_API_KEY no configurada en Vercel');
+    } else if (test) {
+      // Test mode: send admin summary only to the configured address
+      const adminAddr = settings.email.address?.trim();
+      if (!adminAddr) {
+        errors.push('Prueba: configura el campo "Copia al administrador" con tu correo para recibir el test.');
+      } else {
+        try {
+          await sendAdminEmail(key, adminAddr, groups, true);
+          emailsSent++;
+        } catch (e: unknown) {
+          errors.push(`Email prueba: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
     } else {
-      // One personalized email per conductor
-      const result = await sendEmailsToVehicles(key, groups, !!test);
-      emailsSent  += result.sent;
+      // Live mode: one personalized email per conductor
+      const result = await sendEmailsToVehicles(key, groups, false);
+      emailsSent    += result.sent;
       emailsSkipped += result.skipped;
       errors.push(...result.errors);
 
       // Optional admin CC summary
       if (settings.email.address?.trim() && groups.length > 0) {
         try {
-          await sendAdminEmail(key, settings.email.address.trim(), groups, !!test);
+          await sendAdminEmail(key, settings.email.address.trim(), groups, false);
         } catch (e: unknown) {
           errors.push(`Email admin CC: ${e instanceof Error ? e.message : String(e)}`);
         }

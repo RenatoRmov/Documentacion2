@@ -133,10 +133,14 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
       const data = await res.json();
       if (res.ok) {
         const parts: string[] = [];
-        if (data.emailsSent  > 0) parts.push(`${data.emailsSent} email(s) enviado(s) a conductores`);
-        if (data.emailsSkipped > 0) parts.push(`${data.emailsSkipped} sin correo registrado`);
-        if (data.sent > data.emailsSent) parts.push('WhatsApp admin enviado');
-        setSendResult({ ok: true, msg: parts.join(' · ') || 'Sin alertas pendientes' });
+        if (test) {
+          if (data.emailsSent > 0) parts.push(`Email de prueba enviado al administrador`);
+        } else {
+          if (data.emailsSent  > 0) parts.push(`${data.emailsSent} email(s) enviado(s) a conductores`);
+          if (data.emailsSkipped > 0) parts.push(`${data.emailsSkipped} sin correo registrado`);
+        }
+        if (data.errors?.length > 0) parts.push(...data.errors);
+        setSendResult({ ok: data.errors?.length === 0, msg: parts.join(' · ') || 'Sin alertas pendientes' });
       } else {
         setSendResult({ ok: false, msg: data.error ?? 'Error desconocido' });
       }
