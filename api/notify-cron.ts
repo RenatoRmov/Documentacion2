@@ -1,11 +1,9 @@
-// Cron automático diario — se ejecuta a las 08:00 AM hora Chile (11:00 UTC)
-// Requiere: datos de flota en Supabase + variables de entorno en Vercel
+// Cron automático diario — 08:00 AM hora Chile (11:00 UTC)
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { buildAlerts, sendEmail, sendWhatsApp } from './_helpers.js';
+import { groupAlertsByVehicle, sendEmailsToVehicles, sendAdminEmail, sendWhatsApp } from './_helpers.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel cron envía este header para autenticar
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -17,7 +15,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Supabase no configurado' });
   }
 
-  // Leer flota activa desde Supabase
   const supabase = createClient(supabaseUrl, supabaseKey);
   const { data: fleet, error } = await supabase
     .from('vehicles')
@@ -27,11 +24,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (error) return res.status(500).json({ error: `Supabase: ${error.message}` });
   if (!fleet?.length) return res.status(200).json({ message: 'Sin vehículos activos' });
 
-  // Configuración desde variables de entorno de Vercel
-  const email       = process.env.CRON_NOTIFY_EMAIL ?? '';
-  const waNumber    = process.env.CRON_WA_NUMBER ?? '';
-  const waApiKey    = process.env.CRON_WA_APIKEY ?? '';
-  const resendKey   = process.env.RESEND_API_KEY ?? '';
+  const resendKey  = process.env.RESEND_API_KEY ?? '';
+  const adminEmail = process.env.CRON_NOTIFY_EMAIL ?? '';
+  const waNumber   = process.env.CRON_WA_NUMBER ?? '';
+  const waApiKey   = process.env.CRON_WA_APIKEY ?? '';
 
   const priorityDocs = (process.env.CRON_PRIORITY_DOCS ?? [
     'vencimientoPermisoCirculacion',
@@ -45,28 +41,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const daysInAdvance = (process.env.CRON_DAYS_ADVANCE ?? '15,30')
     .split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
 
-  const alerts = buildAlerts(fleet as Record<string, string>[], priorityDocs, daysInAdvance);
+  // fleet from Supabase is snake_case — groupAlertsByVehicle handles both camelCase and snake_case
+  const groups = groupAlertsByVehicle(
+    fleet as Record<string, unknown>[],
+    priorityDocs,
+    daysInAdvance,
+  );
 
   const errors: string[] = [];
-  let sent = 0;
+  let emailsSent = 0;
+  let emailsSkipped = 0;
+  let waSent = false;
 
-  if (resendKey && email) {
-    try {
-      await sendEmail(resendKey, email, alerts, false);
-      sent++;
-    } catch (e: unknown) {
-      errors.push(`Email: ${e instanceof Error ? e.message : String(e)}`);
+  if (resendKey) {
+    const result = await sendEmailsToVehicles(resendKey, groups, false);
+    emailsSent    += result.sent;
+    emailsSkipped += result.skipped;
+    errors.push(...result.errors);
+
+    if (adminEmail && groups.length > 0) {
+      try {
+        await sendAdminEmail(resendKey, adminEmail, groups, false);
+      } catch (e: unknown) {
+        errors.push(`Admin CC: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 
   if (waNumber && waApiKey) {
     try {
-      await sendWhatsApp(waNumber, waApiKey, alerts, false);
-      sent++;
+      await sendWhatsApp(waNumber, waApiKey, groups, false);
+      waSent = true;
     } catch (e: unknown) {
       errors.push(`WhatsApp: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
-  return res.status(200).json({ sent, alerts: alerts.length, errors });
+  const totalAlerts = groups.reduce((sum, g) => sum + g.alerts.length, 0);
+  return res.status(200).json({
+    sent: emailsSent + (waSent ? 1 : 0),
+    alerts: totalAlerts,
+    vehicles: groups.length,
+    emailsSent,
+    emailsSkipped,
+    errors,
+  });
 }
