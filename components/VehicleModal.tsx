@@ -93,14 +93,14 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData as Vehicle);
-    onClose();
+    // onClose is called by the parent (App.tsx) only on successful save
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let { name, value, type } = e.target;
 
-    // Normalización: Mayúsculas
-    if (type === 'text' || type === 'email' || e.target.tagName === 'SELECT') {
+    // Normalización: Mayúsculas solo para text/email, NO para select (los selects deben mantener sus valores exactos)
+    if (type === 'text' || type === 'email') {
       value = value.toUpperCase();
     }
 
@@ -129,21 +129,21 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
   };
 
   const complianceOptions = [
-    { label: '--- Sin Información ---', value: 'SIN INFORMACIÓN' },
+    { label: '--- Sin Información ---', value: 'Sin Información' },
     { label: '✓ OK / Vigente', value: 'OK' },
-    { label: '✗ No Aplica', value: 'NO APLICA' }
+    { label: '✗ No Aplica', value: 'No Aplica' }
   ];
 
   const taximetroOptions = [
-    { label: '--- Sin Información ---', value: 'SIN INFORMACIÓN' },
+    { label: '--- Sin Información ---', value: 'Sin Información' },
     { label: '📅 Sujeto a Control', value: 'SUJETO' },
-    { label: '✗ No Aplica', value: 'NO APLICA' }
+    { label: '✗ No Aplica', value: 'No Aplica' }
   ];
 
   const getTaximetroStatus = () => {
     const val = formData.vencimientoControlTaximetro;
-    if (val === 'NO APLICA') return 'NO APLICA';
-    if (val === 'SIN INFORMACIÓN' || !val && val !== '') return 'SIN INFORMACIÓN';
+    if (!val || val.toLowerCase() === 'sin información' || val.toLowerCase() === 'sin informacion') return 'Sin Información';
+    if (val.toLowerCase() === 'no aplica') return 'No Aplica';
     return 'SUJETO';
   };
 

@@ -55,64 +55,89 @@ const mapVehicleFromDB = (data: any): Vehicle => {
     };
 };
 
+// Converts DD-MM-YYYY → YYYY-MM-DD for Supabase DATE columns.
+// Returns null for empty / "No Aplica" / unrecognized formats.
+const safeToISO = (val: string | undefined): string | null => {
+    if (!val || !val.trim()) return null;
+    const lower = val.toLowerCase().trim();
+    if (lower === 'no aplica' || lower === 'sin información' || lower === 'sin informacion') return null;
+    if (val.match(/^\d{4}-\d{2}-\d{2}$/)) return val;          // already ISO
+    if (val.match(/^\d{2}-\d{2}-\d{4}$/)) return toISODate(val); // DD-MM-YYYY
+    return null;
+};
+
+// For fields that can be a date OR a status text (e.g. vencimientoControlTaximetro).
+// Returns the normalized text ("No Aplica") or an ISO date string, never garbage.
+const safeDateOrStatus = (val: string | undefined): string | null => {
+    if (!val || !val.trim()) return null;
+    const lower = val.toLowerCase().trim();
+    if (lower === 'no aplica') return 'No Aplica';
+    if (lower === 'sin información' || lower === 'sin informacion') return 'Sin Información';
+    if (val.match(/^\d{4}-\d{2}-\d{2}$/)) return val;
+    if (val.match(/^\d{2}-\d{2}-\d{4}$/)) return toISODate(val);
+    return null;
+};
+
+// Normalizes compliance dropdown values to the casing the DB expects.
+const normalizeCompliance = (val: string | undefined): string | null => {
+    if (!val) return null;
+    const lower = val.toLowerCase().trim();
+    if (lower === 'ok') return 'OK';
+    if (lower === 'no aplica') return 'No Aplica';
+    if (lower === 'sin información' || lower === 'sin informacion') return 'Sin Información';
+    return null;
+};
+
 const mapVehicleToDB = (vehicle: Partial<Vehicle>) => {
-    const dbData: any = {
-        numero_movil: vehicle.id,
-        patente: vehicle.patente,
-        tipo: vehicle.tipo,
-        marca: vehicle.marca,
-        modelo: vehicle.modelo,
-        color: vehicle.color,
-        anio: vehicle.año,
-        asientos: vehicle.asientos,
-        estado: vehicle.estado,
-        status_operativo: vehicle.statusOperativo,
+    const dbData: Record<string, unknown> = {};
 
-        nombre_propietario: vehicle.nombrePropietario,
-        rut_propietario: vehicle.rutPropietario,
+    // Only include fields that are actually defined to avoid null-wiping unrelated columns
+    if (vehicle.id         !== undefined) dbData.numero_movil        = vehicle.id;
+    if (vehicle.patente    !== undefined) dbData.patente              = vehicle.patente;
+    if (vehicle.tipo       !== undefined) dbData.tipo                 = vehicle.tipo;
+    if (vehicle.marca      !== undefined) dbData.marca                = vehicle.marca;
+    if (vehicle.modelo     !== undefined) dbData.modelo               = vehicle.modelo;
+    if (vehicle.color      !== undefined) dbData.color                = vehicle.color;
+    if (vehicle.año        !== undefined) dbData.anio                 = Number(vehicle.año) || null;
+    if (vehicle.asientos   !== undefined) dbData.asientos             = Number(vehicle.asientos) || null;
+    if (vehicle.estado     !== undefined) dbData.estado               = vehicle.estado;
+    if (vehicle.statusOperativo !== undefined) dbData.status_operativo = vehicle.statusOperativo;
 
-        municipalidad_permiso: vehicle.municipalidadPermiso,
-        vencimiento_padron: vehicle.vencimientoPadron,
-        certificado_antecedentes: vehicle.certificadoAntecedentes,
-        prestacion_ss: vehicle.prestacionSS,
-        contrato_arriendo: vehicle.contratoArriendo,
-        lugar_seguro_accidentes: vehicle.lugarSeguroAccidentes,
-        aseguradora_asiento: vehicle.aseguradoraAsiento,
-        aseguradora_vida: vehicle.aseguradoraVida,
+    if (vehicle.nombrePropietario !== undefined) dbData.nombre_propietario = vehicle.nombrePropietario;
+    if (vehicle.rutPropietario    !== undefined) dbData.rut_propietario    = vehicle.rutPropietario;
 
-        nombre_conductor: vehicle.nombreConductor,
-        rut_conductor: vehicle.rutConductor,
-        celular: vehicle.celular,
-        email: vehicle.email,
-        direccion: vehicle.direccion,
-        comuna: vehicle.comuna,
-        clase_licencia: vehicle.claseLicencia,
-        ley_licencia: vehicle.leyLicencia,
-        municipalidad_licencia: vehicle.municipalidadLicencia,
-    };
+    if (vehicle.municipalidadPermiso !== undefined) dbData.municipalidad_permiso = vehicle.municipalidadPermiso;
 
-    // Convert dates to ISO YYYY-MM-DD or keep text if "No Aplica" etc.
-    // Helper to safely convert if it looks like a date DD-MM-YYYY
-    const safeToISO = (val: string | undefined) => {
-        if (!val) return null;
-        if (val.match(/^\d{2}-\d{2}-\d{4}$/)) return toISODate(val);
-        return val;
-    };
-
-    if (vehicle.vencimientoPadron !== undefined) dbData.vencimiento_padron = safeToISO(vehicle.vencimientoPadron);
+    if (vehicle.vencimientoPadron             !== undefined) dbData.vencimiento_padron             = safeToISO(vehicle.vencimientoPadron);
     if (vehicle.vencimientoPermisoCirculacion !== undefined) dbData.vencimiento_permiso_circulacion = safeToISO(vehicle.vencimientoPermisoCirculacion);
-    if (vehicle.vencimientoRevisionTecnica !== undefined) dbData.vencimiento_revision_tecnica = safeToISO(vehicle.vencimientoRevisionTecnica);
-    if (vehicle.vencimientoSOAP !== undefined) dbData.vencimiento_soap = safeToISO(vehicle.vencimientoSOAP);
-    if (vehicle.vencimientoControlTaximetro !== undefined) dbData.vencimiento_control_taximetro = safeToISO(vehicle.vencimientoControlTaximetro);
+    if (vehicle.vencimientoRevisionTecnica    !== undefined) dbData.vencimiento_revision_tecnica    = safeToISO(vehicle.vencimientoRevisionTecnica);
+    if (vehicle.vencimientoSOAP               !== undefined) dbData.vencimiento_soap               = safeToISO(vehicle.vencimientoSOAP);
+    if (vehicle.vencimientoControlTaximetro   !== undefined) dbData.vencimiento_control_taximetro   = safeDateOrStatus(vehicle.vencimientoControlTaximetro);
 
-    if (vehicle.vencimientoSeguroAccidentes !== undefined) dbData.vencimiento_seguro_accidentes = safeToISO(vehicle.vencimientoSeguroAccidentes);
-    if (vehicle.vencimientoSeguroAsiento !== undefined) dbData.vencimiento_seguro_asiento = safeToISO(vehicle.vencimientoSeguroAsiento);
+    if (vehicle.certificadoAntecedentes !== undefined) dbData.certificado_antecedentes = normalizeCompliance(vehicle.certificadoAntecedentes);
+    if (vehicle.prestacionSS            !== undefined) dbData.prestacion_ss            = normalizeCompliance(vehicle.prestacionSS);
+    if (vehicle.contratoArriendo        !== undefined) dbData.contrato_arriendo        = normalizeCompliance(vehicle.contratoArriendo);
+
+    if (vehicle.vencimientoSeguroAccidentes    !== undefined) dbData.vencimiento_seguro_accidentes    = safeToISO(vehicle.vencimientoSeguroAccidentes);
+    if (vehicle.lugarSeguroAccidentes          !== undefined) dbData.lugar_seguro_accidentes          = vehicle.lugarSeguroAccidentes;
+    if (vehicle.vencimientoSeguroAsiento       !== undefined) dbData.vencimiento_seguro_asiento       = safeDateOrStatus(vehicle.vencimientoSeguroAsiento);
+    if (vehicle.aseguradoraAsiento             !== undefined) dbData.aseguradora_asiento             = vehicle.aseguradoraAsiento;
     if (vehicle.vencimientoSeguroVidaConductor !== undefined) dbData.vencimiento_seguro_vida_conductor = safeToISO(vehicle.vencimientoSeguroVidaConductor);
+    if (vehicle.aseguradoraVida                !== undefined) dbData.aseguradora_vida                = vehicle.aseguradoraVida;
 
-    if (vehicle.fechaNacimiento !== undefined) dbData.fecha_nacimiento = safeToISO(vehicle.fechaNacimiento);
+    if (vehicle.nombreConductor      !== undefined) dbData.nombre_conductor      = vehicle.nombreConductor;
+    if (vehicle.rutConductor         !== undefined) dbData.rut_conductor         = vehicle.rutConductor;
+    if (vehicle.fechaNacimiento      !== undefined) dbData.fecha_nacimiento      = safeToISO(vehicle.fechaNacimiento);
+    if (vehicle.celular              !== undefined) dbData.celular               = vehicle.celular;
+    if (vehicle.email                !== undefined) dbData.email                 = vehicle.email;
+    if (vehicle.direccion            !== undefined) dbData.direccion             = vehicle.direccion;
+    if (vehicle.comuna               !== undefined) dbData.comuna                = vehicle.comuna;
+    if (vehicle.claseLicencia        !== undefined) dbData.clase_licencia        = vehicle.claseLicencia;
+    if (vehicle.leyLicencia          !== undefined) dbData.ley_licencia          = vehicle.leyLicencia;
+    if (vehicle.municipalidadLicencia !== undefined) dbData.municipalidad_licencia = vehicle.municipalidadLicencia;
 
-    if (vehicle.vigenciaCarnetDesde !== undefined) dbData.vigencia_carnet_desde = safeToISO(vehicle.vigenciaCarnetDesde);
-    if (vehicle.vigenciaCarnetHasta !== undefined) dbData.vigencia_carnet_hasta = safeToISO(vehicle.vigenciaCarnetHasta);
+    if (vehicle.vigenciaCarnetDesde   !== undefined) dbData.vigencia_carnet_desde   = safeToISO(vehicle.vigenciaCarnetDesde);
+    if (vehicle.vigenciaCarnetHasta   !== undefined) dbData.vigencia_carnet_hasta   = safeToISO(vehicle.vigenciaCarnetHasta);
     if (vehicle.vigenciaLicenciaDesde !== undefined) dbData.vigencia_licencia_desde = safeToISO(vehicle.vigenciaLicenciaDesde);
     if (vehicle.vigenciaLicenciaHasta !== undefined) dbData.vigencia_licencia_hasta = safeToISO(vehicle.vigenciaLicenciaHasta);
 
@@ -154,8 +179,8 @@ export const vehicleService = {
 
     async updateVehicle(id: string, updates: Partial<Vehicle>): Promise<Vehicle> {
         const dbData = mapVehicleToDB(updates);
+        delete dbData.numero_movil; // Never update the primary key
 
-        // We update by numero_movil (which is 'id' in our app)
         const { data, error } = await supabase
             .from('vehicles')
             .update(dbData)
