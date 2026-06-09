@@ -107,7 +107,7 @@ export function buildEmailHtmlForVehicle(g: VehicleAlertGroup, test: boolean): s
       : a.days === 0 ? 'VENCE HOY'
       : `Vence en ${a.days} días`;
     return `<tr>
-      <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:13px;">${a.label}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:13px;color:#d4d4d8;">${a.label}</td>
       <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:13px;font-weight:700;color:${color};">${status}</td>
     </tr>`;
   }).join('');
@@ -163,9 +163,9 @@ export function buildAdminEmailHtml(groups: VehicleAlertGroup[], test: boolean):
         const color = a.days < 0 ? '#ef4444' : a.days <= 7 ? '#f97316' : '#eab308';
         const status = a.days < 0 ? `VENCIDO hace ${Math.abs(a.days)} días` : `Vence en ${a.days} días`;
         return `<tr>
-          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;font-weight:700;">${g.vehicleId}</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;">${g.patente}</td>
-          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;">${a.label}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;font-weight:700;color:#ffffff;">${g.vehicleId}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;color:#d4d4d8;">${g.patente}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;color:#d4d4d8;">${a.label}</td>
           <td style="padding:10px 14px;border-bottom:1px solid #27272a;font-size:12px;font-weight:700;color:${color};">${status}</td>
         </tr>`;
       })).join('');
