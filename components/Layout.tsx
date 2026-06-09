@@ -9,11 +9,12 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Centro de Comando', icon: '📊' },
-    { id: 'fleet', label: 'Flota Operativa', icon: '🚗' },
-    { id: 'quick-update', label: 'Sincronizador', icon: '⚡' },
-    { id: 'expirations', label: 'Monitor Auditoría', icon: '⏰' },
-    { id: 'assistant', label: 'Operaciones IA', icon: '✨' },
+    { id: 'dashboard',       label: 'Centro de Comando', icon: '📊' },
+    { id: 'fleet',           label: 'Flota Operativa',   icon: '🚗' },
+    { id: 'quick-update',    label: 'Sincronizador',      icon: '⚡' },
+    { id: 'expirations',     label: 'Monitor Auditoría',  icon: '⏰' },
+    { id: 'automatizaciones', label: 'Alertas Auto',      icon: '🔔' },
+    { id: 'assistant',       label: 'Operaciones IA',     icon: '✨' },
   ];
 
   return (

@@ -62,3 +62,18 @@ export interface DashboardStats {
   expiredCount: number;
   warningCount: number;
 }
+
+export interface NotificationSettings {
+  enabled: boolean;
+  email: {
+    enabled: boolean;
+    address: string;
+  };
+  whatsapp: {
+    enabled: boolean;
+    number: string;
+    apiKey: string;
+  };
+  priorityDocs: string[];
+  daysInAdvance: number[];
+}
