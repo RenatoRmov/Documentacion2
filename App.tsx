@@ -7,6 +7,7 @@ import FleetTable from './components/FleetTable';
 import GeminiAssistant from './components/GeminiAssistant';
 import VehicleModal from './components/VehicleModal';
 import QuickUpdate from './components/QuickUpdate';
+import Automatizaciones from './components/Automatizaciones';
 import { MOCK_VEHICLES } from './constants';
 import { Vehicle } from './types';
 import StatusBadge from './components/StatusBadge';
@@ -130,6 +131,8 @@ const App: React.FC = () => {
         return <QuickUpdate fleet={fleet} onUpdate={handleQuickUpdate} />;
       case 'assistant':
         return <GeminiAssistant fleet={fleet} />;
+      case 'automatizaciones':
+        return <Automatizaciones fleet={fleet} />;
       case 'expirations':
         return (
           <div className="space-y-6">
