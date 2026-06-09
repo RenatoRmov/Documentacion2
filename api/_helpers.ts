@@ -235,16 +235,17 @@ export async function sendEmailsToVehicles(
     const subject = test
       ? `[PRUEBA] Alerta Documental — Móvil ${g.vehicleId}`
       : `🚨 Alerta: ${g.alerts.length} doc(s) por vencer — Móvil ${g.vehicleId}`;
-    try {
-      await resend.emails.send({
-        from: 'RadioMovil Alertas <onboarding@resend.dev>',
-        to: g.email,
-        subject,
-        html: buildEmailHtmlForVehicle(g, test),
-      });
+    // Resend SDK v2+ returns { data, error } instead of throwing
+    const { error } = await resend.emails.send({
+      from: 'RadioMovil Alertas <onboarding@resend.dev>',
+      to: g.email,
+      subject,
+      html: buildEmailHtmlForVehicle(g, test),
+    });
+    if (error) {
+      errors.push(`Móvil ${g.vehicleId} (${g.email}): ${error.message}`);
+    } else {
       sent++;
-    } catch (e: unknown) {
-      errors.push(`Móvil ${g.vehicleId} (${g.email}): ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { sent, skipped, errors };
@@ -260,7 +261,8 @@ export async function sendAdminEmail(
   const { Resend } = await import('resend');
   const resend = new Resend(apiKey);
   const totalAlerts = groups.reduce((sum, g) => sum + g.alerts.length, 0);
-  await resend.emails.send({
+  // Resend SDK v2+ returns { data, error } instead of throwing
+  const { error } = await resend.emails.send({
     from: 'RadioMovil Alertas <onboarding@resend.dev>',
     to,
     subject: test
@@ -268,6 +270,7 @@ export async function sendAdminEmail(
       : `🚨 ${totalAlerts} Documento(s) por Vencer — Resumen Admin RadioMovil`,
     html: buildAdminEmailHtml(groups, test),
   });
+  if (error) throw new Error(error.message);
 }
 
 // WhatsApp admin summary via CallMeBot
