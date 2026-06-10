@@ -125,14 +125,14 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
                         📂
                       </button>
                       <button
-                        onClick={() => onToggleStatus(v.id)}
+                        onClick={() => onToggleStatus(v.patente)}
                         className={`p-2.5 rounded-lg transition-all border border-white/5 ${v.statusOperativo === 'Activo' ? 'text-zinc-600 hover:text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:text-emerald-400 bg-emerald-500/10'}`}
                         title={v.statusOperativo === 'Activo' ? 'Desactivar Móvil' : 'Reactivar Móvil'}
                       >
                         {v.statusOperativo === 'Activo' ? '🚫' : '✅'}
                       </button>
                       <button
-                        onClick={() => { if (window.confirm('¿ELIMINAR DEFINITIVAMENTE EL MÓVIL ' + v.id + '?')) onDelete(v.id); }}
+                        onClick={() => { if (window.confirm('¿ELIMINAR DEFINITIVAMENTE EL MÓVIL ' + v.id + ' (' + v.patente + ')?')) onDelete(v.patente); }}
                         className="p-2.5 text-zinc-600 hover:text-red-500 bg-white/[0.02] hover:bg-red-500/10 rounded-lg transition-all border border-white/5"
                         title="Borrar Registro"
                       >

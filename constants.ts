@@ -52,7 +52,8 @@ export const MOCK_VEHICLES: Vehicle[] = [
     nombreConductor: "SANDRA MARIA LLANTEN TOBAR", rutConductor: "10920570-2", fechaNacimiento: "12-05-1970", celular: "976785460", email: "sandrallantent@gmail.com",
     direccion: "PUERTO VALPARAISO 791", comuna: "QUILICURA", claseLicencia: "A2", leyLicencia: "19.495", municipalidadLicencia: "QUINTA NORMAL",
     vigenciaCarnetDesde: "01-01-2020", vigenciaCarnetHasta: "01-01-2030",
-    vigenciaLicenciaDesde: "20-02-2022", vigenciaLicenciaHasta: "20-02-2028"
+    vigenciaLicenciaDesde: "20-02-2022", vigenciaLicenciaHasta: "20-02-2028",
+    conductorRut: "10920570-2"
   },
   {
     id: "3", patente: "HGDR71", tipo: "AUTOMOVIL", marca: "MAZDA", modelo: "NEW MAZDA 6", color: "GRIS", año: 2019, asientos: 5, estado: "Casa", statusOperativo: "Activo",
@@ -67,6 +68,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
     nombreConductor: "RENATO JESUS OLIVA AGUIRRE", rutConductor: "21082151-1", fechaNacimiento: "09-09-1999", celular: "954057893", email: "renatoliva9@gmail.com",
     direccion: "VALLE LO CAMPINO", comuna: "QUILICURA", claseLicencia: "B", leyLicencia: '', municipalidadLicencia: '',
     vigenciaCarnetDesde: "10-10-2015", vigenciaCarnetHasta: "10-10-2025",
-    vigenciaLicenciaDesde: "01-01-2020", vigenciaLicenciaHasta: "01-01-2025"
+    vigenciaLicenciaDesde: "01-01-2020", vigenciaLicenciaHasta: "01-01-2025",
+    conductorRut: "21082151-1"
   }
 ];

@@ -237,7 +237,7 @@ const QuickUpdate: React.FC<QuickUpdateProps> = ({ fleet, onUpdate }) => {
                 >
                   <option value="" className="bg-[#1B1F24]">ELEGIR MÓVIL...</option>
                   {fleet.sort((a, b) => parseInt(a.id) - parseInt(b.id)).map(v => (
-                    <option key={v.id} value={v.id} className="bg-[#1B1F24]">MÓVIL {v.id} · [{v.patente}]</option>
+                    <option key={v.patente} value={v.patente} className="bg-[#1B1F24]">MÓVIL {v.id} · [{v.patente}]</option>
                   ))}
                 </select>
                 <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-[#C29329] text-[9px] opacity-30">▼</div>

@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Vehicle } from '../types';
+import { Conductor, Vehicle } from '../types';
+import { conductorService } from '../services/conductorService';
 import { vehicleService } from '../services/vehicleService';
 import { settingsService, PortalContact } from '../services/settingsService';
+import { fromISODate } from '../constants';
 
-const PORTAL_DOCS: { docKey: keyof Vehicle; label: string }[] = [
-  { docKey: 'vencimientoPermisoCirculacion',  label: 'Permiso de Circulación' },
-  { docKey: 'vencimientoRevisionTecnica',     label: 'Revisión Técnica' },
+// Conductor personal docs (stored on conductores table)
+const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string }[] = [
+  { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Conductor' },
+  { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir' },
+  { docKey: 'vencimientoSeguroVida', label: 'Seguro de Vida' },
+];
+
+// Vehicle-specific docs
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string }[] = [
+  { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
+  { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
   { docKey: 'vencimientoPadron',             label: 'Padrón' },
   { docKey: 'vencimientoSeguroAccidentes',   label: 'Seguro de Accidentes' },
   { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asiento' },
   { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
-  { docKey: 'vencimientoSeguroVidaConductor', label: 'Seguro Vida Conductor' },
-  { docKey: 'vigenciaLicenciaHasta',         label: 'Licencia de Conducir' },
-  { docKey: 'vigenciaCarnetHasta',           label: 'Carnet de Conductor' },
 ];
 
 function getDaysUntil(dateStr: string): number | null {
@@ -52,12 +59,6 @@ function toInputDate(dateStr: string): string {
   return dateStr;
 }
 
-function fromInputDate(iso: string): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}-${m}-${y}`;
-}
-
 type DocStatus = 'expired' | 'urgent' | 'soon' | 'ok' | 'missing' | 'na';
 
 function getDocStatus(dateStr: string): DocStatus {
@@ -91,7 +92,7 @@ function daysLabel(dateStr: string): string {
 }
 
 interface DocRowProps {
-  docKey: string;
+  contextKey: string; // "conductor:fieldKey" or "PATENTE:fieldKey"
   label: string;
   value: string;
   status: DocStatus;
@@ -99,20 +100,20 @@ interface DocRowProps {
   editVal: string;
   saving: boolean;
   saved: Set<string>;
-  onStartEdit: (key: string, val: string) => void;
+  onStartEdit: (contextKey: string, val: string) => void;
   onEditValChange: (val: string) => void;
-  onSave: (key: string) => void;
+  onSave: (contextKey: string) => void;
   onCancel: () => void;
 }
 
 const DocRow: React.FC<DocRowProps> = ({
-  docKey, label, value, status,
+  contextKey, label, value, status,
   editing, editVal, saving, saved,
   onStartEdit, onEditValChange, onSave, onCancel,
 }) => {
   const meta      = STATUS_META[status];
-  const isEditing = editing === docKey;
-  const wasSaved  = saved.has(docKey);
+  const isEditing = editing === contextKey;
+  const wasSaved  = saved.has(contextKey);
 
   return (
     <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
@@ -133,13 +134,13 @@ const DocRow: React.FC<DocRowProps> = ({
             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
           )}
           {!isEditing && !wasSaved && status !== 'ok' && (
-            <button onClick={() => onStartEdit(docKey, value)}
+            <button onClick={() => onStartEdit(contextKey, value)}
               className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all border border-white/5">
               Actualizar
             </button>
           )}
           {!isEditing && !wasSaved && status === 'ok' && (
-            <button onClick={() => onStartEdit(docKey, value)}
+            <button onClick={() => onStartEdit(contextKey, value)}
               className="text-[7px] font-black uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors">
               Editar
             </button>
@@ -155,7 +156,7 @@ const DocRow: React.FC<DocRowProps> = ({
             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C29329]/50 transition-colors"
           />
           <div className="flex gap-2">
-            <button onClick={() => onSave(docKey)} disabled={saving || !editVal}
+            <button onClick={() => onSave(contextKey)} disabled={saving || !editVal}
               className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
               {saving ? 'Guardando...' : 'Guardar'}
             </button>
@@ -170,42 +171,66 @@ const DocRow: React.FC<DocRowProps> = ({
   );
 };
 
+function countAlerts(docs: { status: DocStatus }[]): number {
+  return docs.filter(d => d.status === 'expired' || d.status === 'urgent' || d.status === 'soon').length;
+}
+
 const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [contact, setContact] = useState<PortalContact | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editVal, setEditVal] = useState('');
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState<Set<string>>(new Set());
+  const [conductor, setConductor] = useState<Conductor | null>(null);
+  const [vehicles,  setVehicles]  = useState<Vehicle[]>([]);
+  const [contact,   setContact]   = useState<PortalContact | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
+  const [editing,   setEditing]   = useState<string | null>(null);
+  const [editVal,   setEditVal]   = useState('');
+  const [saving,    setSaving]    = useState(false);
+  const [saved,     setSaved]     = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    Promise.all([
-      vehicleService.fetchVehicleByToken(token),
-      settingsService.loadContact(),
-    ]).then(([v, c]) => {
-      if (!v) { setError('Enlace inválido o no encontrado.'); return; }
-      setVehicle(v);
-      setContact(c);
-    }).catch(() => setError('Error de conexión. Intenta de nuevo.')).finally(() => setLoading(false));
+    (async () => {
+      try {
+        const c = await conductorService.fetchConductorByToken(token);
+        if (!c) { setError('Enlace inválido o no encontrado.'); return; }
+        const [vs, ct] = await Promise.all([
+          vehicleService.fetchVehiclesByRut(c.rut),
+          settingsService.loadContact(),
+        ]);
+        setConductor(c);
+        setVehicles(vs);
+        setContact(ct);
+      } catch {
+        setError('Error de conexión. Intenta de nuevo.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [token]);
 
-  const startEdit = (key: string, currentVal: string) => {
-    setEditing(key);
+  const startEdit = (contextKey: string, currentVal: string) => {
+    setEditing(contextKey);
     setEditVal(toInputDate(currentVal));
   };
 
-  const handleSave = async (key: string) => {
-    if (!vehicle) return;
+  const handleSave = async (contextKey: string) => {
+    if (!conductor) return;
     setSaving(true);
     try {
-      const dateValue = fromInputDate(editVal);
-      const updated = await vehicleService.updateVehicleByToken(token, { [key]: dateValue } as Partial<Vehicle>);
-      setVehicle(updated);
+      const colonIdx = contextKey.indexOf(':');
+      const ctx      = contextKey.slice(0, colonIdx);
+      const fieldKey = contextKey.slice(colonIdx + 1);
+      const iso      = editVal; // YYYY-MM-DD from <input type="date">
+
+      if (ctx === 'conductor') {
+        await conductorService.updateConductor(conductor.rut, { [fieldKey]: iso } as Partial<Conductor>);
+        const displayVal = fromISODate(iso) || iso;
+        setConductor(prev => prev ? { ...prev, [fieldKey]: displayVal } : null);
+      } else {
+        const updated = await vehicleService.updateVehicle(ctx, { [fieldKey]: iso } as Partial<Vehicle>);
+        setVehicles(prev => prev.map(v => v.patente === ctx ? updated : v));
+      }
       setEditing(null);
-      setSaved(prev => new Set([...prev, key]));
-      setTimeout(() => setSaved(prev => { const n = new Set(prev); n.delete(key); return n; }), 3000);
+      setSaved(prev => new Set([...prev, contextKey]));
+      setTimeout(() => setSaved(prev => { const n = new Set(prev); n.delete(contextKey); return n; }), 3000);
     } catch {
       alert('Error al guardar. Intenta de nuevo.');
     } finally {
@@ -222,42 +247,70 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
     </div>
   );
 
-  if (error || !vehicle) return (
+  if (error || !conductor) return (
     <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-6">
       <div className="text-center max-w-sm">
         <p className="text-4xl mb-4">🔒</p>
         <p className="text-white font-black uppercase tracking-widest text-sm mb-2">Enlace no válido</p>
-        <p className="text-zinc-500 text-xs">{error ?? 'El enlace no corresponde a ningún vehículo registrado.'}</p>
+        <p className="text-zinc-500 text-xs">{error ?? 'El enlace no corresponde a ningún conductor registrado.'}</p>
       </div>
     </div>
   );
 
-  const docs = PORTAL_DOCS.map(d => ({
-    docKey: d.docKey,
-    label:  d.label,
-    value:  String((vehicle as unknown as Record<string, unknown>)[d.docKey] ?? ''),
-    status: getDocStatus(String((vehicle as unknown as Record<string, unknown>)[d.docKey] ?? '')),
-  })).filter(d => d.status !== 'na');
-
-  const expired = docs.filter(d => d.status === 'expired');
-  const urgent  = docs.filter(d => d.status === 'urgent');
-  const soon    = docs.filter(d => d.status === 'soon');
-  const ok      = docs.filter(d => d.status === 'ok');
-  const missing = docs.filter(d => d.status === 'missing');
-
-  const alertCount  = expired.length + urgent.length + soon.length;
-  const companyName = contact?.companyName || 'Radiomóvil';
-
   const rowProps = { editing, editVal, saving, saved, onStartEdit: startEdit, onEditValChange: setEditVal, onSave: handleSave, onCancel: () => setEditing(null) };
 
-  const Section = ({ title, color, items }: { title: string; color: string; items: typeof docs }) => {
+  const conductorDocs = CONDUCTOR_DOCS.map(d => ({
+    contextKey: `conductor:${d.docKey}`,
+    label:  d.label,
+    value:  String((conductor as unknown as Record<string, unknown>)[d.docKey] ?? ''),
+    status: getDocStatus(String((conductor as unknown as Record<string, unknown>)[d.docKey] ?? '')),
+  })).filter(d => d.status !== 'na');
+
+  const vehicleSections = vehicles.map(v => {
+    const docs = VEHICLE_DOCS.map(d => ({
+      contextKey: `${v.patente}:${d.docKey}`,
+      label:  d.label,
+      value:  String((v as unknown as Record<string, unknown>)[d.docKey] ?? ''),
+      status: getDocStatus(String((v as unknown as Record<string, unknown>)[d.docKey] ?? '')),
+    })).filter(d => d.status !== 'na');
+    return { vehicle: v, docs };
+  });
+
+  const totalAlerts = countAlerts(conductorDocs) + vehicleSections.reduce((sum, s) => sum + countAlerts(s.docs), 0);
+  const companyName = contact?.companyName || 'Radiomóvil';
+
+  const DocSection = ({ title, color, items }: { title: string; color: string; items: typeof conductorDocs }) => {
     if (items.length === 0) return null;
     return (
       <div>
         <p className={`text-[8px] font-black uppercase tracking-widest mb-3 ${color}`}>{title}</p>
         <div className="space-y-2">
-          {items.map(d => <DocRow key={d.docKey} {...d} {...rowProps} />)}
+          {items.map(d => <DocRow key={d.contextKey} {...d} {...rowProps} />)}
         </div>
+      </div>
+    );
+  };
+
+  const GroupedDocs = ({ docs }: { docs: typeof conductorDocs }) => {
+    const expired = docs.filter(d => d.status === 'expired');
+    const urgent  = docs.filter(d => d.status === 'urgent');
+    const soon    = docs.filter(d => d.status === 'soon');
+    const ok      = docs.filter(d => d.status === 'ok');
+    const missing = docs.filter(d => d.status === 'missing');
+    return (
+      <div className="space-y-4">
+        <DocSection title="🔴 Vencidos"              color="text-red-400"    items={expired} />
+        <DocSection title="🟠 Urgente (< 7 días)"    color="text-orange-400" items={urgent} />
+        <DocSection title="🟡 Por vencer"            color="text-amber-400"  items={soon} />
+        <DocSection title="⚪ Sin fecha registrada"  color="text-zinc-500"   items={missing} />
+        {ok.length > 0 && (
+          <div>
+            <p className="text-[8px] font-black uppercase tracking-widest mb-3 text-emerald-600">✓ Al día ({ok.length})</p>
+            <div className="space-y-2">
+              {ok.map(d => <DocRow key={d.contextKey} {...d} {...rowProps} />)}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -270,72 +323,82 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div>
             <p className="text-[8px] font-black text-[#C29329] uppercase tracking-[0.25em]">{companyName}</p>
-            <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Portal de documentos</p>
+            <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Portal del conductor</p>
           </div>
-          <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${alertCount > 0 ? 'bg-red-900/30 text-red-400' : 'bg-emerald-900/20 text-emerald-500'}`}>
-            {alertCount > 0 ? `${alertCount} alerta${alertCount !== 1 ? 's' : ''}` : 'Al día'}
+          <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${totalAlerts > 0 ? 'bg-red-900/30 text-red-400' : 'bg-emerald-900/20 text-emerald-500'}`}>
+            {totalAlerts > 0 ? `${totalAlerts} alerta${totalAlerts !== 1 ? 's' : ''}` : 'Al día'}
           </div>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-5 py-6 space-y-6">
 
-        {/* Vehicle card */}
+        {/* Conductor info card */}
         <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-[#C29329] text-black font-black px-3 py-1.5 rounded-xl text-sm italic">
-                {vehicle.id}
-              </div>
-              <div>
-                <p className="text-white font-black uppercase tracking-widest text-sm">{vehicle.patente}</p>
-                <p className="text-zinc-600 text-[8px] uppercase tracking-widest">{vehicle.marca} {vehicle.modelo} {vehicle.año}</p>
-              </div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-[#C29329] text-black font-black px-3 py-1.5 rounded-xl text-sm italic">
+              {conductor.numeroMovil || '—'}
             </div>
-            <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${vehicle.statusOperativo === 'Activo' ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'}`}>
-              {vehicle.statusOperativo}
-            </span>
+            <div>
+              <p className="text-white font-black uppercase tracking-widest text-sm">{conductor.nombre}</p>
+              <p className="text-zinc-600 text-[8px] uppercase tracking-widest">{conductor.rut}</p>
+            </div>
           </div>
           <div className="border-t border-white/5 pt-4 grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">Conductor</p>
-              <p className="text-[10px] font-bold text-white">{vehicle.nombreConductor || '—'}</p>
-            </div>
-            <div>
-              <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">RUT</p>
-              <p className="text-[10px] font-bold text-white">{vehicle.rutConductor || '—'}</p>
-            </div>
-            <div>
               <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">Celular</p>
-              <p className="text-[10px] font-bold text-white">{vehicle.celular || '—'}</p>
+              <p className="text-[10px] font-bold text-white">{conductor.celular || '—'}</p>
             </div>
             <div>
               <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">Correo</p>
-              <p className="text-[10px] font-bold text-white truncate">{vehicle.email || '—'}</p>
+              <p className="text-[10px] font-bold text-white truncate">{conductor.email || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">Licencia</p>
+              <p className="text-[10px] font-bold text-white">{conductor.claseLicencia || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest mb-1">Vehículos asignados</p>
+              <p className="text-[10px] font-bold text-white">{vehicles.length}</p>
             </div>
           </div>
         </div>
 
-        {/* Documents */}
-        <div className="space-y-5">
-          <Section title="🔴 Documentos vencidos"       color="text-red-400"    items={expired} />
-          <Section title="🟠 Urgente — menos de 7 días" color="text-orange-400" items={urgent} />
-          <Section title="🟡 Por vencer"                color="text-amber-400"  items={soon} />
-          <Section title="⚪ Sin fecha registrada"      color="text-zinc-500"   items={missing} />
-          {ok.length > 0 && (
-            <div>
-              <p className="text-[8px] font-black uppercase tracking-widest mb-3 text-emerald-600">✓ Al día ({ok.length})</p>
-              <div className="space-y-2">
-                {ok.map(d => <DocRow key={d.docKey} {...d} {...rowProps} />)}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Conductor personal docs */}
+        {conductorDocs.length > 0 && (
+          <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-5">
+            <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-4">Documentos Personales</p>
+            <GroupedDocs docs={conductorDocs} />
+          </div>
+        )}
 
-        {docs.every(d => d.status === 'ok') && missing.length === 0 && (
+        {/* Vehicle sections */}
+        {vehicleSections.map(({ vehicle, docs }) => (
+          <div key={vehicle.patente} className="bg-[#1B1F24] rounded-2xl border border-white/5 overflow-hidden">
+            <div className="px-5 py-4 bg-black/20 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="bg-white/5 text-zinc-300 font-black px-2 py-1 rounded-lg text-[10px] italic">{vehicle.patente}</span>
+                <div>
+                  <p className="text-white font-black uppercase tracking-widest text-[11px]">{vehicle.marca} {vehicle.modelo}</p>
+                  <p className="text-zinc-600 text-[8px] uppercase tracking-widest">{vehicle.tipo} · {vehicle.año}</p>
+                </div>
+              </div>
+              <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${vehicle.statusOperativo === 'Activo' ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'}`}>
+                {vehicle.statusOperativo}
+              </span>
+            </div>
+            <div className="p-5">
+              {docs.length > 0 ? <GroupedDocs docs={docs} /> : (
+                <p className="text-center text-[9px] text-zinc-600 uppercase tracking-widest py-4">Todos los documentos al día</p>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {vehicles.length === 0 && (
           <div className="py-10 text-center">
-            <p className="text-4xl mb-3">✅</p>
-            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">Toda la documentación al día</p>
+            <p className="text-3xl mb-3">🚗</p>
+            <p className="text-xs font-black uppercase tracking-widest text-zinc-600">Sin vehículos asignados</p>
           </div>
         )}
 

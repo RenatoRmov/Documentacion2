@@ -1,7 +1,28 @@
 
+export interface Conductor {
+  rut: string;
+  numeroMovil: string;
+  nombre: string;
+  fechaNacimiento: string;
+  celular: string;
+  email: string;
+  direccion: string;
+  comuna: string;
+  claseLicencia: string;
+  leyLicencia: string;
+  municipalidadLicencia: string;
+  vigenciaCarnetDesde: string;
+  vigenciaCarnetHasta: string;
+  vigenciaLicenciaDesde: string;
+  vigenciaLicenciaHasta: string;
+  vencimientoSeguroVida: string;
+  aseguradoraVida: string;
+  conductorToken?: string;
+}
+
 export interface Vehicle {
-  id: string; // Número de Móvil
-  patente: string;
+  id: string;      // conductor's numero_movil — display identifier ("Móvil 03")
+  patente: string; // physical vehicle PK in DB — used for all DB operations
   tipo: string;
   marca: string;
   modelo: string;
@@ -9,34 +30,30 @@ export interface Vehicle {
   año: number;
   asientos: number;
   estado: 'Casa' | 'Externo';
-  statusOperativo: 'Activo' | 'Inactivo'; // Nuevo estado operativo
+  statusOperativo: 'Activo' | 'Inactivo';
 
-  // Datos del Propietario
   nombrePropietario: string;
   rutPropietario: string;
 
-  // Documentación del Vehículo
-  vencimientoPadron: string; // Nuevo: Padrón
+  vencimientoPadron: string;
   vencimientoPermisoCirculacion: string;
   municipalidadPermiso: string;
   vencimientoRevisionTecnica: string;
   vencimientoSOAP: string;
-  vencimientoControlTaximetro: string; // Fecha, "No Aplica" o "Sin Información"
+  vencimientoControlTaximetro: string;
 
-  // Nuevos Documentos RM
-  certificadoAntecedentes: 'OK' | 'No Aplica' | 'Sin Información'; // Nuevo
+  certificadoAntecedentes: 'OK' | 'No Aplica' | 'Sin Información';
   prestacionSS: 'OK' | 'No Aplica' | 'Sin Información';
   contratoArriendo: 'OK' | 'No Aplica' | 'Sin Información';
 
-  // Seguros
   vencimientoSeguroAccidentes: string;
   lugarSeguroAccidentes: string;
   vencimientoSeguroAsiento: string;
   aseguradoraAsiento: string;
+
+  // Conductor fields — flattened from conductores join (backward compat with UI)
   vencimientoSeguroVidaConductor: string;
   aseguradoraVida: string;
-
-  // Conductor
   nombreConductor: string;
   rutConductor: string;
   fechaNacimiento: string;
@@ -47,14 +64,12 @@ export interface Vehicle {
   claseLicencia: string;
   leyLicencia: string;
   municipalidadLicencia: string;
-
-  // Vigencias (Desde/Hasta)
   vigenciaCarnetDesde: string;
   vigenciaCarnetHasta: string;
   vigenciaLicenciaDesde: string;
   vigenciaLicenciaHasta: string;
 
-  conductorToken?: string;
+  conductorRut: string | null;
 }
 
 export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No Registra';
@@ -67,21 +82,14 @@ export interface DashboardStats {
 
 export interface NotificationSettings {
   enabled: boolean;
-  email: {
-    enabled: boolean;
-    address: string; // admin CC
-  };
-  whatsapp: {
-    enabled: boolean;
-    number: string;
-    apiKey: string;
-  };
+  email: { enabled: boolean; address: string };
+  whatsapp: { enabled: boolean; number: string; apiKey: string };
   priorityDocs: string[];
   daysInAdvance: number[];
-  includeMissing: boolean;  // also notify about docs with no date registered
+  includeMissing: boolean;
   companyName:     string;
   adminName:       string;
   adminTitle:      string;
-  contactEmail:    string;  // shown in email body for conductors to reply to
-  contactWhatsApp: string;  // shown in email body (formatted, e.g. "+56 9 5405 7893")
+  contactEmail:    string;
+  contactWhatsApp: string;
 }

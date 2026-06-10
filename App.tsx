@@ -54,10 +54,10 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteVehicle = async (id: string) => {
+  const handleDeleteVehicle = async (patente: string) => {
     if (confirm('¿Estás seguro de eliminar este vehículo?')) {
       try {
-        await vehicleService.deleteVehicle(id);
+        await vehicleService.deleteVehicle(patente);
         refreshFleet();
       } catch (error) {
         alert('Error al eliminar vehículo');
@@ -65,12 +65,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleToggleStatus = async (id: string) => {
-    const vehicle = fleet.find(v => v.id === id);
+  const handleToggleStatus = async (patente: string) => {
+    const vehicle = fleet.find(v => v.patente === patente);
     if (vehicle) {
       const newStatus = vehicle.statusOperativo === 'Activo' ? 'Inactivo' : 'Activo';
       try {
-        await vehicleService.updateVehicle(id, { statusOperativo: newStatus });
+        await vehicleService.updateVehicle(patente, { statusOperativo: newStatus });
         refreshFleet();
       } catch (error) {
         console.error('Error updating status:', error);
@@ -83,15 +83,10 @@ const App: React.FC = () => {
 
     try {
       if (isEditing) {
-        await vehicleService.updateVehicle(editingVehicle.id, vehicle);
+        await vehicleService.updateVehicle(editingVehicle.patente, vehicle);
       } else {
-        // Validar duplicados (aunque la DB tiene restricción UNIQUE)
-        if (fleet.find(v => v.id === vehicle.id)) {
-          alert(`El N° de Móvil ${vehicle.id} ya existe en el sistema.`);
-          return;
-        }
         if (fleet.find(v => v.patente === vehicle.patente)) {
-          alert(`La Patente ${vehicle.patente} ya existe en el sistema asociada a otro móvil.`);
+          alert(`La Patente ${vehicle.patente} ya existe en el sistema.`);
           return;
         }
         await vehicleService.createVehicle(vehicle);
@@ -100,13 +95,13 @@ const App: React.FC = () => {
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving vehicle:', error);
-      alert('Error al guardar el vehículo. Verifique que el N° de Móvil o la Patente no estén duplicados.');
+      alert('Error al guardar el vehículo. Verifique que la Patente no esté duplicada.');
     }
   };
 
-  const handleQuickUpdate = async (vehicleId: string, updates: Partial<Vehicle>) => {
+  const handleQuickUpdate = async (patente: string, updates: Partial<Vehicle>) => {
     try {
-      await vehicleService.updateVehicle(vehicleId, updates);
+      await vehicleService.updateVehicle(patente, updates);
       refreshFleet();
     } catch (error) {
       console.error('Error updating vehicle:', error);
