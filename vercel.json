@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/movil/(.*)", "destination": "/index.html" }
+  ],
   "crons": [
     {
       "path": "/api/notify-cron",

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Vehicle, NotificationSettings } from '../types';
+import { settingsService } from '../services/settingsService';
 
 const PRIORITY_DOCS = [
   { key: 'vencimientoPermisoCirculacion',  label: 'Permiso de Circulación', important: true },
@@ -147,8 +148,9 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
 
   const patch = (partial: Partial<NotificationSettings>) => setS(prev => ({ ...prev, ...partial }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     localStorage.setItem('radiomovil_notification_settings', JSON.stringify(s));
+    await settingsService.saveContact(s);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

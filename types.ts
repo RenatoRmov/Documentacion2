@@ -53,6 +53,8 @@ export interface Vehicle {
   vigenciaCarnetHasta: string;
   vigenciaLicenciaDesde: string;
   vigenciaLicenciaHasta: string;
+
+  conductorToken?: string;
 }
 
 export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No Registra';

@@ -51,7 +51,9 @@ const mapVehicleFromDB = (data: any): Vehicle => {
         vigenciaCarnetDesde: fromISODate(data.vigencia_carnet_desde) || data.vigencia_carnet_desde,
         vigenciaCarnetHasta: fromISODate(data.vigencia_carnet_hasta) || data.vigencia_carnet_hasta,
         vigenciaLicenciaDesde: fromISODate(data.vigencia_licencia_desde) || data.vigencia_licencia_desde,
-        vigenciaLicenciaHasta: fromISODate(data.vigencia_licencia_hasta) || data.vigencia_licencia_hasta
+        vigenciaLicenciaHasta: fromISODate(data.vigencia_licencia_hasta) || data.vigencia_licencia_hasta,
+
+        conductorToken: data.conductor_token ?? undefined,
     };
 };
 
@@ -193,6 +195,32 @@ export const vehicleService = {
             throw error;
         }
 
+        return mapVehicleFromDB(data);
+    },
+
+    async fetchVehicleByToken(token: string): Promise<Vehicle | null> {
+        const { data, error } = await supabase
+            .from('vehicles')
+            .select('*')
+            .eq('conductor_token', token)
+            .single();
+
+        if (error || !data) return null;
+        return mapVehicleFromDB(data);
+    },
+
+    async updateVehicleByToken(token: string, updates: Partial<Vehicle>): Promise<Vehicle> {
+        const dbData = mapVehicleToDB(updates);
+        delete dbData.numero_movil;
+
+        const { data, error } = await supabase
+            .from('vehicles')
+            .update(dbData)
+            .eq('conductor_token', token)
+            .select()
+            .single();
+
+        if (error) throw error;
         return mapVehicleFromDB(data);
     },
 
