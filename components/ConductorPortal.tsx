@@ -3,17 +3,17 @@ import { Vehicle } from '../types';
 import { vehicleService } from '../services/vehicleService';
 import { settingsService, PortalContact } from '../services/settingsService';
 
-const PORTAL_DOCS: { key: keyof Vehicle; label: string }[] = [
-  { key: 'vencimientoPermisoCirculacion',  label: 'Permiso de Circulación' },
-  { key: 'vencimientoRevisionTecnica',     label: 'Revisión Técnica' },
-  { key: 'vencimientoSOAP',               label: 'SOAP' },
-  { key: 'vencimientoPadron',             label: 'Padrón' },
-  { key: 'vencimientoSeguroAccidentes',   label: 'Seguro de Accidentes' },
-  { key: 'vencimientoSeguroAsiento',      label: 'Seguro de Asiento' },
-  { key: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
-  { key: 'vencimientoSeguroVidaConductor', label: 'Seguro Vida Conductor' },
-  { key: 'vigenciaLicenciaHasta',         label: 'Licencia de Conducir' },
-  { key: 'vigenciaCarnetHasta',           label: 'Carnet de Conductor' },
+const PORTAL_DOCS: { docKey: keyof Vehicle; label: string }[] = [
+  { docKey: 'vencimientoPermisoCirculacion',  label: 'Permiso de Circulación' },
+  { docKey: 'vencimientoRevisionTecnica',     label: 'Revisión Técnica' },
+  { docKey: 'vencimientoSOAP',               label: 'SOAP' },
+  { docKey: 'vencimientoPadron',             label: 'Padrón' },
+  { docKey: 'vencimientoSeguroAccidentes',   label: 'Seguro de Accidentes' },
+  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asiento' },
+  { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
+  { docKey: 'vencimientoSeguroVidaConductor', label: 'Seguro Vida Conductor' },
+  { docKey: 'vigenciaLicenciaHasta',         label: 'Licencia de Conducir' },
+  { docKey: 'vigenciaCarnetHasta',           label: 'Carnet de Conductor' },
 ];
 
 function getDaysUntil(dateStr: string): number | null {
@@ -72,13 +72,13 @@ function getDocStatus(dateStr: string): DocStatus {
   return 'ok';
 }
 
-const STATUS_META: Record<DocStatus, { label: string; bg: string; text: string; border: string }> = {
-  expired: { label: 'Vencido',     bg: 'bg-red-950/40',    text: 'text-red-400',    border: 'border-red-800/30' },
-  urgent:  { label: 'Urgente',     bg: 'bg-orange-950/40', text: 'text-orange-400', border: 'border-orange-800/30' },
-  soon:    { label: 'Por vencer',  bg: 'bg-amber-950/30',  text: 'text-amber-400',  border: 'border-amber-800/20' },
-  ok:      { label: 'Al día',      bg: 'bg-emerald-950/20',text: 'text-emerald-500',border: 'border-emerald-800/20' },
-  missing: { label: 'Sin fecha',   bg: 'bg-zinc-900/40',   text: 'text-zinc-500',   border: 'border-white/5' },
-  na:      { label: 'No aplica',   bg: 'bg-zinc-900/20',   text: 'text-zinc-600',   border: 'border-white/5' },
+const STATUS_META: Record<DocStatus, { bg: string; text: string; border: string }> = {
+  expired: { bg: 'bg-red-950/40',    text: 'text-red-400',    border: 'border-red-800/30' },
+  urgent:  { bg: 'bg-orange-950/40', text: 'text-orange-400', border: 'border-orange-800/30' },
+  soon:    { bg: 'bg-amber-950/30',  text: 'text-amber-400',  border: 'border-amber-800/20' },
+  ok:      { bg: 'bg-emerald-950/20',text: 'text-emerald-500',border: 'border-emerald-800/20' },
+  missing: { bg: 'bg-zinc-900/40',   text: 'text-zinc-500',   border: 'border-white/5' },
+  na:      { bg: 'bg-zinc-900/20',   text: 'text-zinc-600',   border: 'border-white/5' },
 };
 
 function daysLabel(dateStr: string): string {
@@ -90,15 +90,95 @@ function daysLabel(dateStr: string): string {
   return `Vence en ${days} días`;
 }
 
+interface DocRowProps {
+  docKey: string;
+  label: string;
+  value: string;
+  status: DocStatus;
+  editing: string | null;
+  editVal: string;
+  saving: boolean;
+  saved: Set<string>;
+  onStartEdit: (key: string, val: string) => void;
+  onEditValChange: (val: string) => void;
+  onSave: (key: string) => void;
+  onCancel: () => void;
+}
+
+const DocRow: React.FC<DocRowProps> = ({
+  docKey, label, value, status,
+  editing, editVal, saving, saved,
+  onStartEdit, onEditValChange, onSave, onCancel,
+}) => {
+  const meta      = STATUS_META[status];
+  const isEditing = editing === docKey;
+  const wasSaved  = saved.has(docKey);
+
+  return (
+    <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${meta.text}`}>{label}</p>
+          {!isEditing && (
+            <p className="text-[10px] text-zinc-300 font-bold">
+              {formatDate(value)}
+              {(status === 'expired' || status === 'urgent' || status === 'soon') && (
+                <span className={`ml-2 text-[8px] font-black ${meta.text}`}>· {daysLabel(value)}</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {wasSaved && !isEditing && (
+            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
+          )}
+          {!isEditing && !wasSaved && status !== 'ok' && (
+            <button onClick={() => onStartEdit(docKey, value)}
+              className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all border border-white/5">
+              Actualizar
+            </button>
+          )}
+          {!isEditing && !wasSaved && status === 'ok' && (
+            <button onClick={() => onStartEdit(docKey, value)}
+              className="text-[7px] font-black uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors">
+              Editar
+            </button>
+          )}
+        </div>
+      </div>
+      {isEditing && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 bg-black/20">
+          <input
+            type="date"
+            value={editVal}
+            onChange={e => onEditValChange(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C29329]/50 transition-colors"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => onSave(docKey)} disabled={saving || !editVal}
+              className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button onClick={onCancel} disabled={saving}
+              className="px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white/10 text-zinc-500 hover:text-white transition-all">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
-  const [vehicle,  setVehicle]  = useState<Vehicle | null>(null);
-  const [contact,  setContact]  = useState<PortalContact | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
-  const [editing,  setEditing]  = useState<string | null>(null);
-  const [editVal,  setEditVal]  = useState('');
-  const [saving,   setSaving]   = useState(false);
-  const [saved,    setSaved]    = useState<Set<string>>(new Set());
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [contact, setContact] = useState<PortalContact | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState<Set<string>>(new Set());
 
   useEffect(() => {
     Promise.all([
@@ -152,83 +232,23 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
     </div>
   );
 
-  const docs = PORTAL_DOCS
-    .map(d => ({
-      ...d,
-      value: String((vehicle as unknown as Record<string, unknown>)[d.key] ?? ''),
-      status: getDocStatus(String((vehicle as unknown as Record<string, unknown>)[d.key] ?? '')),
-    }))
-    .filter(d => d.status !== 'na');
+  const docs = PORTAL_DOCS.map(d => ({
+    docKey: d.docKey,
+    label:  d.label,
+    value:  String((vehicle as unknown as Record<string, unknown>)[d.docKey] ?? ''),
+    status: getDocStatus(String((vehicle as unknown as Record<string, unknown>)[d.docKey] ?? '')),
+  })).filter(d => d.status !== 'na');
 
-  const expired  = docs.filter(d => d.status === 'expired');
-  const urgent   = docs.filter(d => d.status === 'urgent');
-  const soon     = docs.filter(d => d.status === 'soon');
-  const ok       = docs.filter(d => d.status === 'ok');
-  const missing  = docs.filter(d => d.status === 'missing');
+  const expired = docs.filter(d => d.status === 'expired');
+  const urgent  = docs.filter(d => d.status === 'urgent');
+  const soon    = docs.filter(d => d.status === 'soon');
+  const ok      = docs.filter(d => d.status === 'ok');
+  const missing = docs.filter(d => d.status === 'missing');
 
-  const alertCount = expired.length + urgent.length + soon.length;
+  const alertCount  = expired.length + urgent.length + soon.length;
   const companyName = contact?.companyName || 'Radiomóvil';
 
-  const DocRow = ({ key: docKey, label, value, status }: typeof docs[0]) => {
-    const meta = STATUS_META[status];
-    const isEditing = editing === docKey;
-    const wasSaved  = saved.has(docKey);
-
-    return (
-      <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
-        <div className="px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${meta.text}`}>{label}</p>
-            {!isEditing && (
-              <p className="text-[10px] text-zinc-300 font-bold">
-                {formatDate(value)}
-                {(status === 'expired' || status === 'urgent' || status === 'soon') && (
-                  <span className={`ml-2 text-[8px] font-black ${meta.text}`}>· {daysLabel(value)}</span>
-                )}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {wasSaved && !isEditing && (
-              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
-            )}
-            {!isEditing && !wasSaved && status !== 'ok' && (
-              <button onClick={() => startEdit(docKey, value)}
-                className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all border border-white/5">
-                Actualizar
-              </button>
-            )}
-            {!isEditing && !wasSaved && status === 'ok' && (
-              <button onClick={() => startEdit(docKey, value)}
-                className="text-[7px] font-black uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors">
-                Editar
-              </button>
-            )}
-          </div>
-        </div>
-        {isEditing && (
-          <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 bg-black/20">
-            <input
-              type="date"
-              value={editVal}
-              onChange={e => setEditVal(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C29329]/50 transition-colors"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => handleSave(docKey)} disabled={saving || !editVal}
-                className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
-              <button onClick={() => setEditing(null)} disabled={saving}
-                className="px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white/10 text-zinc-500 hover:text-white transition-all">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const rowProps = { editing, editVal, saving, saved, onStartEdit: startEdit, onEditValChange: setEditVal, onSave: handleSave, onCancel: () => setEditing(null) };
 
   const Section = ({ title, color, items }: { title: string; color: string; items: typeof docs }) => {
     if (items.length === 0) return null;
@@ -236,7 +256,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       <div>
         <p className={`text-[8px] font-black uppercase tracking-widest mb-3 ${color}`}>{title}</p>
         <div className="space-y-2">
-          {items.map(d => <DocRow key={d.key} {...d} />)}
+          {items.map(d => <DocRow key={d.docKey} {...d} {...rowProps} />)}
         </div>
       </div>
     );
@@ -298,21 +318,20 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
 
         {/* Documents */}
         <div className="space-y-5">
-          <Section title="🔴 Documentos vencidos"  color="text-red-400"    items={expired} />
+          <Section title="🔴 Documentos vencidos"       color="text-red-400"    items={expired} />
           <Section title="🟠 Urgente — menos de 7 días" color="text-orange-400" items={urgent} />
-          <Section title="🟡 Por vencer"           color="text-amber-400"  items={soon} />
-          <Section title="⚪ Sin fecha registrada" color="text-zinc-500"   items={missing} />
+          <Section title="🟡 Por vencer"                color="text-amber-400"  items={soon} />
+          <Section title="⚪ Sin fecha registrada"      color="text-zinc-500"   items={missing} />
           {ok.length > 0 && (
             <div>
               <p className="text-[8px] font-black uppercase tracking-widest mb-3 text-emerald-600">✓ Al día ({ok.length})</p>
               <div className="space-y-2">
-                {ok.map(d => <DocRow key={d.key} {...d} />)}
+                {ok.map(d => <DocRow key={d.docKey} {...d} {...rowProps} />)}
               </div>
             </div>
           )}
         </div>
 
-        {/* No alerts */}
         {docs.every(d => d.status === 'ok') && missing.length === 0 && (
           <div className="py-10 text-center">
             <p className="text-4xl mb-3">✅</p>
@@ -324,16 +343,11 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         {contact && (contact.adminName || contact.contactEmail || contact.contactWhatsApp) && (
           <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-5">
             <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-3">Contacto del encargado</p>
-            {contact.adminName && (
-              <p className="text-sm font-black text-white mb-0.5">{contact.adminName}</p>
-            )}
-            {contact.adminTitle && (
-              <p className="text-[9px] text-zinc-500 mb-3">{contact.adminTitle}</p>
-            )}
+            {contact.adminName && <p className="text-sm font-black text-white mb-0.5">{contact.adminName}</p>}
+            {contact.adminTitle && <p className="text-[9px] text-zinc-500 mb-3">{contact.adminTitle}</p>}
             <div className="space-y-2">
               {contact.contactEmail && (
-                <a href={`mailto:${contact.contactEmail}`}
-                  className="flex items-center gap-2 text-[10px] text-zinc-400 hover:text-white transition-colors">
+                <a href={`mailto:${contact.contactEmail}`} className="flex items-center gap-2 text-[10px] text-zinc-400 hover:text-white transition-colors">
                   <span>📧</span><span>{contact.contactEmail}</span>
                 </a>
               )}
