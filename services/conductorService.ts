@@ -61,8 +61,10 @@ export const conductorService = {
     if (updates.vigenciaLicenciaHasta !== undefined) dbData.vigencia_licencia_hasta = updates.vigenciaLicenciaHasta || null;
     if (updates.vencimientoSeguroVida !== undefined) dbData.vencimiento_seguro_vida = updates.vencimientoSeguroVida || null;
     if (updates.aseguradoraVida       !== undefined) dbData.aseguradora_vida        = updates.aseguradoraVida;
-    if (updates.celular               !== undefined) dbData.celular                 = updates.celular;
-    if (updates.email                 !== undefined) dbData.email                   = updates.email;
+    if (updates.celular     !== undefined) dbData.celular      = updates.celular;
+    if (updates.email       !== undefined) dbData.email        = updates.email;
+    if (updates.urlCarnet   !== undefined) dbData.url_carnet   = updates.urlCarnet   || null;
+    if (updates.urlLicencia !== undefined) dbData.url_licencia = updates.urlLicencia || null;
     await supabase.from('conductores').update(dbData).eq('rut', rut);
   },
 };
