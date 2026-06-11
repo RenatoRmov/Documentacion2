@@ -30,6 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     adminTitle:      process.env.CRON_ADMIN_TITLE      ?? '',
     contactEmail:    process.env.CRON_CONTACT_EMAIL    ?? process.env.CRON_NOTIFY_EMAIL ?? '',
     contactWhatsApp: process.env.CRON_CONTACT_WHATSAPP ?? '',
+    appUrl:          (process.env.CRON_APP_URL ?? process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '').replace(/\/$/, ''),
   };
 
   const priorityDocs = (process.env.CRON_PRIORITY_DOCS ?? [

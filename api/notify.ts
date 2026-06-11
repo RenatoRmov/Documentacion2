@@ -18,12 +18,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { fleet, settings, test } = req.body ?? {};
   if (!fleet || !settings) return res.status(400).json({ error: 'Missing fleet or settings' });
 
+  const proto  = (req.headers['x-forwarded-proto'] as string) || 'https';
+  const host   = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || '';
+  const appUrl = `${proto}://${host}`.replace(/\/$/, '');
+
   const contact: ContactInfo = {
     companyName:     settings.companyName     ?? 'RadioMovil',
     adminName:       settings.adminName       ?? '',
     adminTitle:      settings.adminTitle      ?? '',
     contactEmail:    settings.contactEmail    ?? settings.email?.address ?? '',
     contactWhatsApp: settings.contactWhatsApp ?? '',
+    appUrl,
   };
 
   const groups = groupAlertsByVehicle(
