@@ -5,7 +5,7 @@ import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import FleetTable from './components/FleetTable';
 import GeminiAssistant from './components/GeminiAssistant';
-import VehicleModal from './components/VehicleModal';
+import VehicleWizard, { ConductorForm, VehicleEntry } from './components/VehicleWizard';
 import QuickUpdate from './components/QuickUpdate';
 import Automatizaciones from './components/Automatizaciones';
 import { MOCK_VEHICLES } from './constants';
@@ -78,23 +78,58 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveVehicle = async (vehicle: Vehicle) => {
-    const isEditing = editingVehicle !== null;
-
+  const handleWizardSave = async (conductor: ConductorForm, vehicleEntries: VehicleEntry[]) => {
     try {
-      if (isEditing) {
-        await vehicleService.updateVehicle(editingVehicle.patente, vehicle);
-      } else {
-        if (fleet.find(v => v.patente === vehicle.patente)) {
-          alert(`La Patente ${vehicle.patente} ya existe en el sistema.`);
-          return;
+      for (const ve of vehicleEntries) {
+        const vehicle: Vehicle = {
+          id: conductor.numeroMovil,
+          patente: ve.patente,
+          tipo: ve.tipo, marca: ve.marca, modelo: ve.modelo, color: ve.color,
+          año: ve.año, asientos: ve.asientos, estado: ve.estado, statusOperativo: ve.statusOperativo,
+          nombrePropietario: ve.nombrePropietario, rutPropietario: ve.rutPropietario,
+          vencimientoPadron: ve.vencimientoPadron,
+          vencimientoPermisoCirculacion: ve.vencimientoPermisoCirculacion,
+          municipalidadPermiso: ve.municipalidadPermiso,
+          vencimientoRevisionTecnica: ve.vencimientoRevisionTecnica,
+          vencimientoSOAP: ve.vencimientoSOAP,
+          vencimientoControlTaximetro: ve.vencimientoControlTaximetro,
+          certificadoAntecedentes: ve.certificadoAntecedentes as Vehicle['certificadoAntecedentes'],
+          prestacionSS: ve.prestacionSS as Vehicle['prestacionSS'],
+          contratoArriendo: ve.contratoArriendo as Vehicle['contratoArriendo'],
+          vencimientoSeguroAccidentes: ve.vencimientoSeguroAccidentes,
+          lugarSeguroAccidentes: ve.lugarSeguroAccidentes,
+          vencimientoSeguroAsiento: ve.vencimientoSeguroAsiento,
+          aseguradoraAsiento: ve.aseguradoraAsiento,
+          vencimientoSeguroVidaConductor: conductor.vencimientoSeguroVida,
+          aseguradoraVida: conductor.aseguradoraVida,
+          nombreConductor: conductor.nombre,
+          rutConductor: conductor.rut,
+          fechaNacimiento: conductor.fechaNacimiento,
+          celular: conductor.celular,
+          email: conductor.email,
+          direccion: conductor.direccion,
+          comuna: conductor.comuna,
+          claseLicencia: conductor.claseLicencia,
+          leyLicencia: conductor.leyLicencia,
+          municipalidadLicencia: conductor.municipalidadLicencia,
+          vigenciaCarnetDesde: conductor.vigenciaCarnetDesde,
+          vigenciaCarnetHasta: conductor.vigenciaCarnetHasta,
+          vigenciaLicenciaDesde: conductor.vigenciaLicenciaDesde,
+          vigenciaLicenciaHasta: conductor.vigenciaLicenciaHasta,
+          conductorRut: conductor.rut || null,
+        };
+        const exists = fleet.some(fv => fv.patente === ve.patente);
+        if (exists) {
+          await vehicleService.updateVehicle(ve.patente, vehicle);
+        } else {
+          await vehicleService.createVehicle(vehicle);
         }
-        await vehicleService.createVehicle(vehicle);
       }
       refreshFleet();
       setIsModalOpen(false);
+      setEditingVehicle(null);
     } catch (error) {
-      console.error('Error saving vehicle:', error);
+      console.error('Error saving:', error);
       const msg = error instanceof Error ? error.message : JSON.stringify(error);
       alert(`Error al guardar: ${msg}`);
     }
@@ -208,11 +243,17 @@ const App: React.FC = () => {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {renderContent()}
-      <VehicleModal
+      <VehicleWizard
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveVehicle}
-        initialData={editingVehicle}
+        onClose={() => { setIsModalOpen(false); setEditingVehicle(null); }}
+        onSave={handleWizardSave}
+        initialVehicles={
+          editingVehicle
+            ? (editingVehicle.rutConductor
+                ? fleet.filter(v => v.rutConductor === editingVehicle.rutConductor)
+                : [editingVehicle])
+            : []
+        }
       />
     </Layout>
   );
