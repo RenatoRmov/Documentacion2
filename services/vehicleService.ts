@@ -55,7 +55,8 @@ const mapVehicleFromDB = (data: Record<string, unknown>): Vehicle => {
         vencimientoSeguroVidaConductor: fromISODate(String(c?.vencimiento_seguro_vida ?? '')) || String(c?.vencimiento_seguro_vida ?? ''),
         aseguradoraVida:       String(c?.aseguradora_vida ?? ''),
 
-        conductorRut: data.conductor_rut ? String(data.conductor_rut) : null,
+        conductorRut:   data.conductor_rut ? String(data.conductor_rut) : null,
+        conductorToken: c?.conductor_token ? String(c.conductor_token) : undefined,
 
         urlPadron:             String(data.url_padron ?? ''),
         urlPermisoCirculacion: String(data.url_permiso_circulacion ?? ''),

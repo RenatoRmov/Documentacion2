@@ -72,6 +72,7 @@ export interface Vehicle {
   vigenciaLicenciaHasta: string;
 
   conductorRut: string | null;
+  conductorToken?: string;
 
   // Document file URLs
   urlPadron?: string;

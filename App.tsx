@@ -142,6 +142,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSendAlert = async (patentes: string[]) => {
+    const raw = localStorage.getItem('radiomovil_notification_settings');
+    const settings = raw ? JSON.parse(raw) : null;
+    if (!settings?.email?.enabled) {
+      alert('Activa el canal Email en Automatizaciones y guarda la configuración antes de enviar alertas.');
+      return;
+    }
+    const targetFleet = fleet.filter(v => patentes.includes(v.patente));
+    try {
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fleet: targetFleet, settings, test: false }),
+      });
+      const data = await res.json();
+      if (data.emailsSent > 0) {
+        alert(`✓ ${data.emailsSent} alerta(s) enviada(s) correctamente.`);
+      } else {
+        alert('Sin alertas pendientes para los móviles seleccionados (documentos al día o sin email registrado).');
+      }
+    } catch (e) {
+      alert('Error al enviar alertas. Verifica la conexión.');
+    }
+  };
+
   const handleQuickUpdate = async (patente: string, updates: Partial<Vehicle>) => {
     try {
       await vehicleService.updateVehicle(patente, updates);
@@ -163,6 +188,7 @@ const App: React.FC = () => {
             onAdd={handleAddVehicle}
             onDelete={handleDeleteVehicle}
             onToggleStatus={handleToggleStatus}
+            onSendAlert={handleSendAlert}
           />
         );
       case 'quick-update':
