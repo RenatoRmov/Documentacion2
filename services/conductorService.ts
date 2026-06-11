@@ -21,6 +21,8 @@ export const mapConductorFromDB = (data: Record<string, unknown>): Conductor => 
   vencimientoSeguroVida:fromISODate(String(data.vencimiento_seguro_vida ?? '')) || String(data.vencimiento_seguro_vida ?? ''),
   aseguradoraVida:      String(data.aseguradora_vida ?? ''),
   conductorToken:       data.conductor_token ? String(data.conductor_token) : undefined,
+  urlCarnet:            String(data.url_carnet ?? ''),
+  urlLicencia:          String(data.url_licencia ?? ''),
 });
 
 export const conductorService = {

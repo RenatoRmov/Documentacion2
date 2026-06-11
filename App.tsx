@@ -117,6 +117,13 @@ const App: React.FC = () => {
           vigenciaLicenciaDesde: conductor.vigenciaLicenciaDesde,
           vigenciaLicenciaHasta: conductor.vigenciaLicenciaHasta,
           conductorRut: conductor.rut || null,
+          urlCarnet: conductor.urlCarnet,
+          urlLicencia: conductor.urlLicencia,
+          urlPadron: ve.urlPadron,
+          urlPermisoCirculacion: ve.urlPermisoCirculacion,
+          urlRevisionTecnica: ve.urlRevisionTecnica,
+          urlSOAP: ve.urlSOAP,
+          urlSeguroAsiento: ve.urlSeguroAsiento,
         };
         const exists = fleet.some(fv => fv.patente === ve.patente);
         if (exists) {

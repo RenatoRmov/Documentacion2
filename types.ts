@@ -18,6 +18,8 @@ export interface Conductor {
   vencimientoSeguroVida: string;
   aseguradoraVida: string;
   conductorToken?: string;
+  urlCarnet?: string;
+  urlLicencia?: string;
 }
 
 export interface Vehicle {
@@ -70,6 +72,15 @@ export interface Vehicle {
   vigenciaLicenciaHasta: string;
 
   conductorRut: string | null;
+
+  // Document file URLs
+  urlPadron?: string;
+  urlPermisoCirculacion?: string;
+  urlRevisionTecnica?: string;
+  urlSOAP?: string;
+  urlSeguroAsiento?: string;
+  urlCarnet?: string;
+  urlLicencia?: string;
 }
 
 export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No Registra';

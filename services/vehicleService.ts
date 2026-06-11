@@ -56,6 +56,14 @@ const mapVehicleFromDB = (data: Record<string, unknown>): Vehicle => {
         aseguradoraVida:       String(c?.aseguradora_vida ?? ''),
 
         conductorRut: data.conductor_rut ? String(data.conductor_rut) : null,
+
+        urlPadron:             String(data.url_padron ?? ''),
+        urlPermisoCirculacion: String(data.url_permiso_circulacion ?? ''),
+        urlRevisionTecnica:    String(data.url_revision_tecnica ?? ''),
+        urlSOAP:               String(data.url_soap ?? ''),
+        urlSeguroAsiento:      String(data.url_seguro_asiento ?? ''),
+        urlCarnet:             String(c?.url_carnet ?? ''),
+        urlLicencia:           String(c?.url_licencia ?? ''),
     };
 };
 
@@ -109,6 +117,8 @@ const mapConductorToDB = (vehicle: Partial<Vehicle>): Record<string, unknown> =>
     const lh = safeToISO(vehicle.vigenciaLicenciaHasta); if (lh) d.vigencia_licencia_hasta = lh;
     const sv = safeToISO(vehicle.vencimientoSeguroVidaConductor); if (sv) d.vencimiento_seguro_vida = sv;
     if (str(vehicle.aseguradoraVida))   d.aseguradora_vida        = vehicle.aseguradoraVida!.trim();
+    if (str(vehicle.urlCarnet))         d.url_carnet              = vehicle.urlCarnet!.trim();
+    if (str(vehicle.urlLicencia))       d.url_licencia            = vehicle.urlLicencia!.trim();
     return d;
 };
 
@@ -141,6 +151,12 @@ const mapVehicleToDB = (vehicle: Partial<Vehicle>): Record<string, unknown> => {
     if (vehicle.aseguradoraAsiento      !== undefined) d.aseguradora_asiento      = vehicle.aseguradoraAsiento;
     // FK to conductor
     if (vehicle.rutConductor !== undefined) d.conductor_rut = vehicle.rutConductor || null;
+    // Document URLs
+    if (vehicle.urlPadron             !== undefined) d.url_padron              = vehicle.urlPadron             || null;
+    if (vehicle.urlPermisoCirculacion !== undefined) d.url_permiso_circulacion = vehicle.urlPermisoCirculacion || null;
+    if (vehicle.urlRevisionTecnica    !== undefined) d.url_revision_tecnica    = vehicle.urlRevisionTecnica    || null;
+    if (vehicle.urlSOAP               !== undefined) d.url_soap                = vehicle.urlSOAP               || null;
+    if (vehicle.urlSeguroAsiento      !== undefined) d.url_seguro_asiento      = vehicle.urlSeguroAsiento      || null;
     return d;
 };
 
