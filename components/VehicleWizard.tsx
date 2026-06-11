@@ -74,7 +74,7 @@ type ChangeEvt = React.ChangeEvent<HTMLInputElement | HTMLSelectElement>;
 
 function normalize(name: string, value: string, type: string): string {
   if (type === 'date') return fromISODate(value);
-  if (type === 'text' || type === 'email') value = value.toUpperCase();
+  // RUT formatting only — no toUpperCase on every keystroke (cursor jumps to end)
   if (name === 'rutConductor' || name === 'rut' || name === 'rutPropietario') {
     let c = value.replace(/[^0-9kK]/g, '').toUpperCase();
     if (c.length > 1) value = `${c.slice(0, -1)}-${c.slice(-1)}`;
@@ -506,6 +506,47 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.25em] mb-3 border-b border-white/5 pb-2">{children}</p>
 );
 
+// Módulo-nivel — estables entre renders, los inputs no se desmontan
+const VF = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="space-y-1 min-w-0">
+    <label className="text-[7px] font-black text-zinc-600 uppercase tracking-widest block">{label}</label>
+    {children}
+  </div>
+);
+
+const VS = ({ name, value, opts, onChange }: {
+  name: string; value: string;
+  opts: { label: string; value: string }[];
+  onChange: React.ChangeEventHandler<HTMLSelectElement>;
+}) => (
+  <div className="relative">
+    <select name={name} value={value} onChange={onChange}
+      className="w-full px-3 py-2.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-bold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all appearance-none text-[11px]">
+      {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-700 text-[8px]">▼</div>
+  </div>
+);
+
+const VDF = ({ label, fieldKey, vehicle, isUploading, onUpload, children }: {
+  label: string; fieldKey: string;
+  vehicle: VehicleEntry;
+  isUploading: (f: string) => boolean;
+  onUpload: (f: string, file: File) => Promise<void>;
+  children: React.ReactNode;
+}) => (
+  <div className="min-w-0">
+    <label className="text-[7px] font-black text-zinc-600 uppercase tracking-widest block mb-1">{label}</label>
+    {children}
+    <UploadButton
+      url={(vehicle as unknown as Record<string, unknown>)[fieldKey] as string | undefined}
+      uploading={isUploading(fieldKey)}
+      onUpload={f => onUpload(fieldKey, f)}
+      disabled={!vehicle.patente}
+    />
+  </div>
+);
+
 interface VehicleCardProps {
   idx: number; v: VehicleEntry; isExpanded: boolean; isOnly: boolean; isEditing: boolean;
   onToggle: () => void; onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -521,39 +562,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
 }) => {
   const iCls = (date = false) =>
     `w-full ${date ? 'px-1.5 text-[10px]' : 'px-3 text-[11px]'} py-2.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0`;
-
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="space-y-1 min-w-0">
-      <label className="text-[7px] font-black text-zinc-600 uppercase tracking-widest block">{label}</label>
-      {children}
-    </div>
-  );
-
-  const DocF = ({ label, fieldKey, children }: { label: string; fieldKey: string; children: React.ReactNode }) => (
-    <div className="min-w-0">
-      <label className="text-[7px] font-black text-zinc-600 uppercase tracking-widest block mb-1">{label}</label>
-      {children}
-      <UploadButton
-        url={(v as Record<string, unknown>)[fieldKey] as string | undefined}
-        uploading={isUploading(fieldKey)}
-        onUpload={f => onUpload(fieldKey, f)}
-        disabled={!v.patente}
-      />
-    </div>
-  );
-
-  const Sel = ({ name, value, opts, onChange: onChangeProp }: {
-    name: string; value: string; opts: { label: string; value: string }[];
-    onChange?: React.ChangeEventHandler<HTMLSelectElement>;
-  }) => (
-    <div className="relative">
-      <select name={name} value={value} onChange={onChangeProp ?? onChange}
-        className="w-full px-3 py-2.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-bold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all appearance-none text-[11px]">
-        {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-700 text-[8px]">▼</div>
-    </div>
-  );
 
   const taxStatus = getTaxStatus();
 
@@ -590,21 +598,21 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <SectionLabel>Especificaciones</SectionLabel>
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3">
-              <F label="Patente *"><input name="patente" value={v.patente} onChange={onChange} disabled={isEditing} className={iCls()} /></F>
-              <F label="Tipo"><Sel name="tipo" value={v.tipo} opts={[
+              <VF label="Patente *"><input name="patente" value={v.patente} onChange={onChange} disabled={isEditing} className={iCls()} /></VF>
+              <VF label="Tipo"><VS name="tipo" value={v.tipo} onChange={onChange} opts={[
                 { label: 'Automóvil', value: 'AUTOMOVIL' }, { label: 'Station Wagon', value: 'STATION WAGON' },
                 { label: 'SUV', value: 'SUV' }, { label: 'Minibus', value: 'MINIBUS' },
                 { label: 'Taxi Ejecutivo', value: 'TAXI EJECUTIVO' },
-              ]} /></F>
-              <F label="Marca"><input name="marca" value={v.marca} onChange={onChange} className={iCls()} /></F>
-              <F label="Modelo"><input name="modelo" value={v.modelo} onChange={onChange} className={iCls()} /></F>
-              <F label="Color"><input name="color" value={v.color} onChange={onChange} className={iCls()} /></F>
-              <F label="Año"><input name="año" type="number" value={v.año} onChange={onChange} className={iCls()} /></F>
-              <F label="Asientos"><input name="asientos" type="number" value={v.asientos} onChange={onChange} className={iCls()} /></F>
-              <F label="Estado"><Sel name="estado" value={v.estado} opts={[{ label: 'Externo', value: 'Externo' }, { label: 'Casa', value: 'Casa' }]} /></F>
-              <F label="Operativo"><Sel name="statusOperativo" value={v.statusOperativo} opts={[{ label: 'Activo', value: 'Activo' }, { label: 'Inactivo', value: 'Inactivo' }]} /></F>
-              <div className="col-span-2"><F label="Propietario"><input name="nombrePropietario" value={v.nombrePropietario} onChange={onChange} className={iCls()} /></F></div>
-              <F label="RUT Prop."><input name="rutPropietario" value={v.rutPropietario} onChange={onChange} className={iCls()} /></F>
+              ]} /></VF>
+              <VF label="Marca"><input name="marca" value={v.marca} onChange={onChange} className={iCls()} /></VF>
+              <VF label="Modelo"><input name="modelo" value={v.modelo} onChange={onChange} className={iCls()} /></VF>
+              <VF label="Color"><input name="color" value={v.color} onChange={onChange} className={iCls()} /></VF>
+              <VF label="Año"><input name="año" type="number" value={v.año} onChange={onChange} className={iCls()} /></VF>
+              <VF label="Asientos"><input name="asientos" type="number" value={v.asientos} onChange={onChange} className={iCls()} /></VF>
+              <VF label="Estado"><VS name="estado" value={v.estado} onChange={onChange} opts={[{ label: 'Externo', value: 'Externo' }, { label: 'Casa', value: 'Casa' }]} /></VF>
+              <VF label="Operativo"><VS name="statusOperativo" value={v.statusOperativo} onChange={onChange} opts={[{ label: 'Activo', value: 'Activo' }, { label: 'Inactivo', value: 'Inactivo' }]} /></VF>
+              <div className="col-span-2"><VF label="Propietario"><input name="nombrePropietario" value={v.nombrePropietario} onChange={onChange} className={iCls()} /></VF></div>
+              <VF label="RUT Prop."><input name="rutPropietario" value={v.rutPropietario} onChange={onChange} className={iCls()} /></VF>
             </div>
           </div>
 
@@ -612,28 +620,28 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <SectionLabel>Documentos del Vehículo</SectionLabel>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-start">
-              <DocF label="Padrón" fieldKey="urlPadron">
+              <VDF label="Padrón" fieldKey="urlPadron" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoPadron" type="date" value={toISODate(v.vencimientoPadron)} onChange={onChange} className={iCls(true)} />
-              </DocF>
-              <DocF label="P. Circulación" fieldKey="urlPermisoCirculacion">
+              </VDF>
+              <VDF label="P. Circulación" fieldKey="urlPermisoCirculacion" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoPermisoCirculacion" type="date" value={toISODate(v.vencimientoPermisoCirculacion)} onChange={onChange} className={iCls(true)} />
-              </DocF>
-              <F label="Municipalidad"><input name="municipalidadPermiso" value={v.municipalidadPermiso} onChange={onChange} className={iCls()} /></F>
-              <DocF label="Rev. Técnica" fieldKey="urlRevisionTecnica">
+              </VDF>
+              <VF label="Municipalidad"><input name="municipalidadPermiso" value={v.municipalidadPermiso} onChange={onChange} className={iCls()} /></VF>
+              <VDF label="Rev. Técnica" fieldKey="urlRevisionTecnica" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoRevisionTecnica" type="date" value={toISODate(v.vencimientoRevisionTecnica)} onChange={onChange} className={iCls(true)} />
-              </DocF>
-              <DocF label="SOAP" fieldKey="urlSOAP">
+              </VDF>
+              <VDF label="SOAP" fieldKey="urlSOAP" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoSOAP" type="date" value={toISODate(v.vencimientoSOAP)} onChange={onChange} className={iCls(true)} />
-              </DocF>
-              <F label="Taxímetro">
-                <Sel name="taximetro_toggle" value={taxStatus} opts={[
+              </VDF>
+              <VF label="Taxímetro">
+                <VS name="taximetro_toggle" value={taxStatus} onChange={onTaxToggle as React.ChangeEventHandler<HTMLSelectElement>} opts={[
                   { label: '— Sin Información', value: 'Sin Información' },
                   { label: '📅 Sujeto a Control', value: 'SUJETO' },
                   { label: '✗ No Aplica', value: 'No Aplica' },
-                ]} onChange={onTaxToggle as React.ChangeEventHandler<HTMLSelectElement>} />
-              </F>
+                ]} />
+              </VF>
               {taxStatus === 'SUJETO' && (
-                <F label="Próx. Control"><input name="vencimientoControlTaximetro" type="date" value={toISODate(v.vencimientoControlTaximetro)} onChange={onChange} className={iCls(true)} /></F>
+                <VF label="Próx. Control"><input name="vencimientoControlTaximetro" type="date" value={toISODate(v.vencimientoControlTaximetro)} onChange={onChange} className={iCls(true)} /></VF>
               )}
             </div>
           </div>
@@ -642,12 +650,12 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <SectionLabel>Seguros del Vehículo</SectionLabel>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-start">
-              <F label="Seguro Accidentes"><input name="vencimientoSeguroAccidentes" type="date" value={toISODate(v.vencimientoSeguroAccidentes)} onChange={onChange} className={iCls(true)} /></F>
-              <F label="Compañía"><input name="lugarSeguroAccidentes" value={v.lugarSeguroAccidentes} onChange={onChange} className={iCls()} /></F>
-              <DocF label="Seguro Asiento" fieldKey="urlSeguroAsiento">
+              <VF label="Seguro Accidentes"><input name="vencimientoSeguroAccidentes" type="date" value={toISODate(v.vencimientoSeguroAccidentes)} onChange={onChange} className={iCls(true)} /></VF>
+              <VF label="Compañía"><input name="lugarSeguroAccidentes" value={v.lugarSeguroAccidentes} onChange={onChange} className={iCls()} /></VF>
+              <VDF label="Seguro Asiento" fieldKey="urlSeguroAsiento" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoSeguroAsiento" type="date" value={toISODate(v.vencimientoSeguroAsiento)} onChange={onChange} className={iCls(true)} />
-              </DocF>
-              <F label="Aseguradora Asiento"><input name="aseguradoraAsiento" value={v.aseguradoraAsiento} onChange={onChange} className={iCls()} /></F>
+              </VDF>
+              <VF label="Aseguradora Asiento"><input name="aseguradoraAsiento" value={v.aseguradoraAsiento} onChange={onChange} className={iCls()} /></VF>
             </div>
           </div>
 
@@ -661,13 +669,13 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
                 { name: 'contratoArriendo', label: 'Contrato Arriendo', val: v.contratoArriendo },
               ].map(item => (
                 <div key={item.name}>
-                  <F label={item.label}>
-                    <Sel name={item.name} value={item.val} opts={[
+                  <VF label={item.label}>
+                    <VS name={item.name} value={item.val} onChange={onChange} opts={[
                       { label: '— Sin Información', value: 'Sin Información' },
                       { label: '✓ OK / Vigente', value: 'OK' },
                       { label: '✗ No Aplica', value: 'No Aplica' },
                     ]} />
-                  </F>
+                  </VF>
                 </div>
               ))}
             </div>
