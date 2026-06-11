@@ -95,7 +95,8 @@ const App: React.FC = () => {
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving vehicle:', error);
-      alert('Error al guardar el vehículo. Verifique que la Patente no esté duplicada.');
+      const msg = error instanceof Error ? error.message : JSON.stringify(error);
+      alert(`Error al guardar: ${msg}`);
     }
   };
 
