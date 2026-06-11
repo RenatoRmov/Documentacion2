@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Vehicle } from '../types';
 import { toISODate, fromISODate } from '../constants';
+import { conductorService } from '../services/conductorService';
 
 const SectionTitle = ({ title, icon }: { title: string, icon: string }) => (
   <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 border-b border-white/5 pb-3 flex items-center gap-3">
@@ -17,10 +18,12 @@ interface InputFieldProps {
   placeholder?: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
   disabled?: boolean;
+  highlight?: boolean;
 }
 
-const InputField = ({ label, name, type = "text", required = false, placeholder = "", value, onChange, disabled = false }: InputFieldProps) => (
+const InputField = ({ label, name, type = "text", required = false, placeholder = "", value, onChange, onBlur, disabled = false, highlight = false }: InputFieldProps) => (
   <div className="space-y-2 flex-1 min-w-0">
     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block px-1 truncate">{label}</label>
     <input
@@ -29,9 +32,10 @@ const InputField = ({ label, name, type = "text", required = false, placeholder 
       name={name}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       placeholder={placeholder}
       disabled={disabled}
-      className={`w-full ${type === 'date' ? 'px-1.5 text-[10px]' : 'px-5 text-xs'} py-3.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0 ${disabled ? 'opacity-20 cursor-not-allowed' : ''}`}
+      className={`w-full ${type === 'date' ? 'px-1.5 text-[10px]' : 'px-5 text-xs'} py-3.5 bg-[#0A0C0E] border rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0 ${disabled ? 'opacity-20 cursor-not-allowed' : ''} ${highlight ? 'border-emerald-700/40' : 'border-white/5'}`}
     />
   </div>
 );
@@ -62,30 +66,36 @@ interface VehicleModalProps {
   initialData?: Vehicle | null;
 }
 
+type ConductorStatus = 'idle' | 'loading' | 'found' | 'new';
+
+const EMPTY_FORM: Partial<Vehicle> = {
+  id: '', patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: 2024, asientos: 5, estado: 'Externo', statusOperativo: 'Activo',
+  nombrePropietario: '', rutPropietario: '',
+  vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
+  vencimientoRevisionTecnica: '', vencimientoSOAP: '',
+  vencimientoControlTaximetro: 'SIN INFORMACIÓN',
+  certificadoAntecedentes: 'Sin Información',
+  prestacionSS: 'Sin Información', contratoArriendo: 'Sin Información',
+  vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
+  vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
+  vencimientoSeguroVidaConductor: '', aseguradoraVida: '',
+  nombreConductor: '', rutConductor: '', fechaNacimiento: '', celular: '', email: '',
+  direccion: '', comuna: '', claseLicencia: '', leyLicencia: '', municipalidadLicencia: '',
+  vigenciaCarnetDesde: '', vigenciaCarnetHasta: '',
+  vigenciaLicenciaDesde: '', vigenciaLicenciaHasta: ''
+};
+
 const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
   const [formData, setFormData] = useState<Partial<Vehicle>>({});
+  const [conductorStatus, setConductorStatus] = useState<ConductorStatus>('idle');
 
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
     } else {
-      setFormData({
-        id: '', patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: 2024, asientos: 5, estado: 'Externo', statusOperativo: 'Activo',
-        nombrePropietario: '', rutPropietario: '',
-        vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
-        vencimientoRevisionTecnica: '', vencimientoSOAP: '',
-        vencimientoControlTaximetro: 'SIN INFORMACIÓN',
-        certificadoAntecedentes: 'SIN INFORMACIÓN',
-        prestacionSS: 'SIN INFORMACIÓN', contratoArriendo: 'SIN INFORMACIÓN',
-        vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
-        vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
-        vencimientoSeguroVidaConductor: '', aseguradoraVida: '',
-        nombreConductor: '', rutConductor: '', fechaNacimiento: '', celular: '', email: '',
-        direccion: '', comuna: '', claseLicencia: '', leyLicencia: '', municipalidadLicencia: '',
-        vigenciaCarnetDesde: '', vigenciaCarnetHasta: '',
-        vigenciaLicenciaDesde: '', vigenciaLicenciaHasta: ''
-      });
+      setFormData({ ...EMPTY_FORM });
     }
+    setConductorStatus('idle');
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
@@ -93,18 +103,15 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData as Vehicle);
-    // onClose is called by the parent (App.tsx) only on successful save
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let { name, value, type } = e.target;
 
-    // Normalización: Mayúsculas solo para text/email, NO para select (los selects deben mantener sus valores exactos)
     if (type === 'text' || type === 'email') {
       value = value.toUpperCase();
     }
 
-    // Normalización: RUT
     if ((name === 'rutPropietario' || name === 'rutConductor') && value.length > 1) {
       let clean = value.replace(/[^0-9kK]/g, '').toUpperCase();
       if (clean.length > 1) {
@@ -118,6 +125,41 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
 
     const finalValue = type === 'date' ? fromISODate(value) : value;
     setFormData(prev => ({ ...prev, [name]: finalValue }));
+  };
+
+  const handleRutBlur = async () => {
+    const rut = formData.rutConductor?.trim();
+    if (!rut || !rut.includes('-') || initialData) return;
+    setConductorStatus('loading');
+    try {
+      const found = await conductorService.fetchConductorByRut(rut);
+      if (found) {
+        setFormData(prev => ({
+          ...prev,
+          id:                          found.numeroMovil || prev.id,
+          nombreConductor:             found.nombre,
+          fechaNacimiento:             found.fechaNacimiento,
+          celular:                     found.celular,
+          email:                       found.email,
+          direccion:                   found.direccion,
+          comuna:                      found.comuna,
+          claseLicencia:               found.claseLicencia,
+          leyLicencia:                 found.leyLicencia,
+          municipalidadLicencia:       found.municipalidadLicencia,
+          vigenciaCarnetDesde:         found.vigenciaCarnetDesde,
+          vigenciaCarnetHasta:         found.vigenciaCarnetHasta,
+          vigenciaLicenciaDesde:       found.vigenciaLicenciaDesde,
+          vigenciaLicenciaHasta:       found.vigenciaLicenciaHasta,
+          vencimientoSeguroVidaConductor: found.vencimientoSeguroVida,
+          aseguradoraVida:             found.aseguradoraVida,
+        }));
+        setConductorStatus('found');
+      } else {
+        setConductorStatus('new');
+      }
+    } catch {
+      setConductorStatus('new');
+    }
   };
 
   const handleTaximetroToggle = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -147,6 +189,8 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
     return 'SUJETO';
   };
 
+  const hl = conductorStatus === 'found'; // highlight pre-filled conductor fields
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
       <div className="bg-[#1B1F24] rounded-3xl shadow-[0_50px_100px_rgba(0,0,0,0.5)] w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col border border-white/5">
@@ -164,7 +208,7 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
             <SectionTitle title="Especificaciones Técnicas del Activo" icon="🚕" />
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
               <InputField label="N° Móvil" name="id" required value={formData.id || ''} onChange={handleChange} />
-              <InputField label="Patente" name="patente" required value={formData.patente || ''} onChange={handleChange} />
+              <InputField label="Patente" name="patente" required disabled={!!initialData} value={formData.patente || ''} onChange={handleChange} />
               <SelectField
                 label="Tipo"
                 name="tipo"
@@ -306,43 +350,62 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
                 <InputField label="Aseguradora" name="aseguradoraAsiento" value={formData.aseguradoraAsiento || ''} onChange={handleChange} />
               </div>
               <div className="p-5 bg-amber-950/5 rounded-2xl border border-amber-900/10 space-y-4">
-                <label className="text-[8px] font-black text-amber-700 uppercase block border-b border-amber-900/20 pb-2 tracking-[0.2em]">S. Vida</label>
-                <InputField label="Expiración" name="vencimientoSeguroVidaConductor" type="date" value={toISODate(formData.vencimientoSeguroVidaConductor || '')} onChange={handleChange} />
-                <InputField label="Aseguradora" name="aseguradoraVida" value={formData.aseguradoraVida || ''} onChange={handleChange} />
+                <label className="text-[8px] font-black text-amber-700 uppercase block border-b border-amber-900/20 pb-2 tracking-[0.2em]">S. Vida Conductor</label>
+                <InputField label="Expiración" name="vencimientoSeguroVidaConductor" type="date" value={toISODate(formData.vencimientoSeguroVidaConductor || '')} onChange={handleChange} highlight={hl} />
+                <InputField label="Aseguradora" name="aseguradoraVida" value={formData.aseguradoraVida || ''} onChange={handleChange} highlight={hl} />
               </div>
             </div>
           </section>
 
           {/* Conductor */}
           <section>
-            <SectionTitle title="Gestión de Operador Humano" icon="🆔" />
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-6">
+              <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] flex items-center gap-3">
+                <span className="text-sm">🆔</span> Gestión de Operador Humano
+              </h3>
+              {!initialData && conductorStatus === 'loading' && (
+                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest animate-pulse">Buscando conductor...</span>
+              )}
+              {!initialData && conductorStatus === 'found' && (
+                <span className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-emerald-900/30 text-emerald-400">
+                  ✓ Conductor registrado — datos cargados
+                </span>
+              )}
+              {!initialData && conductorStatus === 'new' && (
+                <span className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-amber-900/20 text-amber-600">
+                  Nuevo conductor
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="space-y-6">
-                <InputField label="Nombre Completo" name="nombreConductor" required value={formData.nombreConductor || ''} onChange={handleChange} />
-                <InputField label="RUT Operador" name="rutConductor" required value={formData.rutConductor || ''} onChange={handleChange} />
-                <InputField label="Nacimiento" name="fechaNacimiento" type="date" required value={toISODate(formData.fechaNacimiento || '')} onChange={handleChange} />
-                <InputField label="Dirección" name="direccion" value={formData.direccion || ''} onChange={handleChange} />
-                <InputField label="Comuna" name="comuna" value={formData.comuna || ''} onChange={handleChange} />
-                <InputField label="Email" name="email" type="email" value={formData.email || ''} onChange={handleChange} />
+                <InputField label="RUT Operador" name="rutConductor" required value={formData.rutConductor || ''} onChange={handleChange} onBlur={handleRutBlur} />
+                <InputField label="Nombre Completo" name="nombreConductor" required value={formData.nombreConductor || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Nacimiento" name="fechaNacimiento" type="date" required value={toISODate(formData.fechaNacimiento || '')} onChange={handleChange} highlight={hl} />
+                <InputField label="Celular" name="celular" value={formData.celular || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Email" name="email" type="email" value={formData.email || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Dirección" name="direccion" value={formData.direccion || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Comuna" name="comuna" value={formData.comuna || ''} onChange={handleChange} highlight={hl} />
               </div>
 
               <div className="p-6 bg-emerald-950/5 rounded-2xl border border-emerald-900/10 space-y-5">
                 <label className="text-[8px] font-black text-emerald-800 uppercase block border-b border-emerald-900/20 pb-2 tracking-[0.2em]">Identidad (C.I.)</label>
                 <div className="flex gap-4">
-                  <InputField label="Desde" name="vigenciaCarnetDesde" type="date" value={toISODate(formData.vigenciaCarnetDesde || '')} onChange={handleChange} />
-                  <InputField label="Hasta" name="vigenciaCarnetHasta" type="date" required value={toISODate(formData.vigenciaCarnetHasta || '')} onChange={handleChange} />
+                  <InputField label="Desde" name="vigenciaCarnetDesde" type="date" value={toISODate(formData.vigenciaCarnetDesde || '')} onChange={handleChange} highlight={hl} />
+                  <InputField label="Hasta" name="vigenciaCarnetHasta" type="date" required value={toISODate(formData.vigenciaCarnetHasta || '')} onChange={handleChange} highlight={hl} />
                 </div>
               </div>
 
               <div className="p-6 bg-emerald-950/5 rounded-2xl border border-emerald-900/10 space-y-5">
                 <label className="text-[8px] font-black text-emerald-800 uppercase block border-b border-emerald-900/20 pb-2 tracking-[0.2em]">Licencia Conducir</label>
                 <div className="flex gap-4">
-                  <InputField label="Emisión" name="vigenciaLicenciaDesde" type="date" value={toISODate(formData.vigenciaLicenciaDesde || '')} onChange={handleChange} />
-                  <InputField label="Control" name="vigenciaLicenciaHasta" type="date" required value={toISODate(formData.vigenciaLicenciaHasta || '')} onChange={handleChange} />
+                  <InputField label="Emisión" name="vigenciaLicenciaDesde" type="date" value={toISODate(formData.vigenciaLicenciaDesde || '')} onChange={handleChange} highlight={hl} />
+                  <InputField label="Control" name="vigenciaLicenciaHasta" type="date" required value={toISODate(formData.vigenciaLicenciaHasta || '')} onChange={handleChange} highlight={hl} />
                 </div>
-                <InputField label="Clase" name="claseLicencia" placeholder="A2, A3, B..." value={formData.claseLicencia || ''} onChange={handleChange} />
-                <InputField label="Municipalidad que otorga" name="municipalidadLicencia" value={formData.municipalidadLicencia || ''} onChange={handleChange} />
-                <InputField label="Ley Licencia" name="leyLicencia" placeholder="19.495" value={formData.leyLicencia || ''} onChange={handleChange} />
+                <InputField label="Clase" name="claseLicencia" placeholder="A2, A3, B..." value={formData.claseLicencia || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Municipalidad que otorga" name="municipalidadLicencia" value={formData.municipalidadLicencia || ''} onChange={handleChange} highlight={hl} />
+                <InputField label="Ley Licencia" name="leyLicencia" placeholder="19.495" value={formData.leyLicencia || ''} onChange={handleChange} highlight={hl} />
               </div>
             </div>
           </section>

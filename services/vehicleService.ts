@@ -88,25 +88,27 @@ const normalizeCompliance = (val: string | undefined): string | null => {
 };
 
 // Maps Vehicle → conductor DB row (for upsert into conductores)
+// Only includes fields with real values so upsert never overwrites existing data with empty strings
 const mapConductorToDB = (vehicle: Partial<Vehicle>): Record<string, unknown> => {
     const d: Record<string, unknown> = {};
-    if (vehicle.id            !== undefined) d.numero_movil            = vehicle.id;
-    if (vehicle.rutConductor  !== undefined) d.rut                     = vehicle.rutConductor;
-    if (vehicle.nombreConductor !== undefined) d.nombre                 = vehicle.nombreConductor;
-    if (vehicle.fechaNacimiento !== undefined) d.fecha_nacimiento        = safeToISO(vehicle.fechaNacimiento);
-    if (vehicle.celular       !== undefined) d.celular                  = vehicle.celular;
-    if (vehicle.email         !== undefined) d.email                    = vehicle.email;
-    if (vehicle.direccion     !== undefined) d.direccion                = vehicle.direccion;
-    if (vehicle.comuna        !== undefined) d.comuna                   = vehicle.comuna;
-    if (vehicle.claseLicencia !== undefined) d.clase_licencia           = vehicle.claseLicencia;
-    if (vehicle.leyLicencia   !== undefined) d.ley_licencia             = vehicle.leyLicencia;
-    if (vehicle.municipalidadLicencia !== undefined) d.municipalidad_licencia = vehicle.municipalidadLicencia;
-    if (vehicle.vigenciaCarnetDesde   !== undefined) d.vigencia_carnet_desde   = safeToISO(vehicle.vigenciaCarnetDesde);
-    if (vehicle.vigenciaCarnetHasta   !== undefined) d.vigencia_carnet_hasta   = safeToISO(vehicle.vigenciaCarnetHasta);
-    if (vehicle.vigenciaLicenciaDesde !== undefined) d.vigencia_licencia_desde = safeToISO(vehicle.vigenciaLicenciaDesde);
-    if (vehicle.vigenciaLicenciaHasta !== undefined) d.vigencia_licencia_hasta = safeToISO(vehicle.vigenciaLicenciaHasta);
-    if (vehicle.vencimientoSeguroVidaConductor !== undefined) d.vencimiento_seguro_vida = safeToISO(vehicle.vencimientoSeguroVidaConductor);
-    if (vehicle.aseguradoraVida !== undefined) d.aseguradora_vida       = vehicle.aseguradoraVida;
+    const str = (v: string | undefined) => v?.trim() || null;
+    if (str(vehicle.id))                d.numero_movil            = vehicle.id!.trim();
+    if (str(vehicle.rutConductor))      d.rut                     = vehicle.rutConductor!.trim();
+    if (str(vehicle.nombreConductor))   d.nombre                  = vehicle.nombreConductor!.trim();
+    const fn = safeToISO(vehicle.fechaNacimiento); if (fn) d.fecha_nacimiento = fn;
+    if (str(vehicle.celular))           d.celular                 = vehicle.celular!.trim();
+    if (str(vehicle.email))             d.email                   = vehicle.email!.trim();
+    if (str(vehicle.direccion))         d.direccion               = vehicle.direccion!.trim();
+    if (str(vehicle.comuna))            d.comuna                  = vehicle.comuna!.trim();
+    if (str(vehicle.claseLicencia))     d.clase_licencia          = vehicle.claseLicencia!.trim();
+    if (str(vehicle.leyLicencia))       d.ley_licencia            = vehicle.leyLicencia!.trim();
+    if (str(vehicle.municipalidadLicencia)) d.municipalidad_licencia = vehicle.municipalidadLicencia!.trim();
+    const cd = safeToISO(vehicle.vigenciaCarnetDesde);   if (cd) d.vigencia_carnet_desde   = cd;
+    const ch = safeToISO(vehicle.vigenciaCarnetHasta);   if (ch) d.vigencia_carnet_hasta   = ch;
+    const ld = safeToISO(vehicle.vigenciaLicenciaDesde); if (ld) d.vigencia_licencia_desde = ld;
+    const lh = safeToISO(vehicle.vigenciaLicenciaHasta); if (lh) d.vigencia_licencia_hasta = lh;
+    const sv = safeToISO(vehicle.vencimientoSeguroVidaConductor); if (sv) d.vencimiento_seguro_vida = sv;
+    if (str(vehicle.aseguradoraVida))   d.aseguradora_vida        = vehicle.aseguradoraVida!.trim();
     return d;
 };
 
