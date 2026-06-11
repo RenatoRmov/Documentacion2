@@ -328,8 +328,9 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         await vehicleService.updateVehicle(ctx, { [urlKey]: url } as Partial<Vehicle>);
         setVehicles(prev => prev.map(v => v.patente === ctx ? { ...v, [urlKey]: url } : v));
       }
-    } catch {
-      alert('Error al subir el archivo. Intenta de nuevo.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      alert(`Error al subir el archivo:\n${msg}`);
     } finally {
       setUploading(null);
     }
