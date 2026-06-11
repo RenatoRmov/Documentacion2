@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/movil/(.*)", "destination": "/index.html" }
+    { "source": "/movil/(.*)", "destination": "/index.html" },
+    { "source": "/portal", "destination": "/index.html" }
   ],
   "crons": [
     {
