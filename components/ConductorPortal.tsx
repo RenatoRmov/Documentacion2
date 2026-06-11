@@ -112,21 +112,19 @@ interface DocRowProps {
   status: DocStatus;
   urlValue?: string;
   editing: string | null;
-  editVal: string;
   saving: boolean;
   uploading: boolean;
   saved: Set<string>;
-  onStartEdit: (contextKey: string, val: string) => void;
-  onEditValChange: (val: string) => void;
-  onSave: (contextKey: string) => void;
+  onStartEdit: (contextKey: string) => void;
+  onSave: (contextKey: string, dateVal: string) => void;
   onCancel: () => void;
   onUpload: (contextKey: string, file: File) => Promise<void>;
 }
 
 const DocRow: React.FC<DocRowProps> = ({
   contextKey, label, value, status, urlValue,
-  editing, editVal, saving, uploading, saved,
-  onStartEdit, onEditValChange, onSave, onCancel, onUpload,
+  editing, saving, uploading, saved,
+  onStartEdit, onSave, onCancel, onUpload,
 }) => {
   const meta      = STATUS_META[status];
   const isEditing = editing === contextKey;
@@ -134,6 +132,13 @@ const DocRow: React.FC<DocRowProps> = ({
   const fileRef   = useRef<HTMLInputElement>(null);
   const fieldKey  = contextKey.slice(contextKey.indexOf(':') + 1);
   const hasUrlField = fieldKey in DATE_TO_URL_KEY;
+
+  // Estado local de la fecha — evita re-renders del padre mientras el conductor escribe
+  const [localDate, setLocalDate] = useState('');
+  useEffect(() => {
+    if (isEditing) setLocalDate(toInputDate(value));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
 
   return (
     <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
@@ -162,13 +167,13 @@ const DocRow: React.FC<DocRowProps> = ({
             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
           )}
           {!isEditing && !wasSaved && status !== 'ok' && (
-            <button onClick={() => onStartEdit(contextKey, value)}
+            <button onClick={() => onStartEdit(contextKey)}
               className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all border border-white/5">
               Actualizar
             </button>
           )}
           {!isEditing && !wasSaved && status === 'ok' && (
-            <button onClick={() => onStartEdit(contextKey, value)}
+            <button onClick={() => onStartEdit(contextKey)}
               className="text-[7px] font-black uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors">
               Editar
             </button>
@@ -178,7 +183,7 @@ const DocRow: React.FC<DocRowProps> = ({
 
       {isEditing && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 bg-black/20">
-          <input type="date" value={editVal} onChange={e => onEditValChange(e.target.value)}
+          <input type="date" value={localDate} onChange={e => setLocalDate(e.target.value)}
             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C29329]/50 transition-colors" />
 
           {/* File upload */}
@@ -210,7 +215,7 @@ const DocRow: React.FC<DocRowProps> = ({
           )}
 
           <div className="flex gap-2">
-            <button onClick={() => onSave(contextKey)} disabled={saving || (!editVal && !urlValue)}
+            <button onClick={() => onSave(contextKey, localDate)} disabled={saving || (!localDate && !urlValue)}
               className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
               {saving ? 'Guardando...' : 'Guardar'}
             </button>
@@ -248,7 +253,6 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [editing,   setEditing]   = useState<string | null>(null);
-  const [editVal,   setEditVal]   = useState('');
   const [saving,    setSaving]    = useState(false);
   const [uploading, setUploading] = useState<string | null>(null); // contextKey being uploaded
   const [saved,     setSaved]     = useState<Set<string>>(new Set());
@@ -273,19 +277,16 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
     })();
   }, [token]);
 
-  const startEdit = (contextKey: string, currentVal: string) => {
-    setEditing(contextKey);
-    setEditVal(toInputDate(currentVal));
-  };
+  const startEdit = (contextKey: string) => setEditing(contextKey);
 
-  const handleSave = async (contextKey: string) => {
+  const handleSave = async (contextKey: string, dateVal: string) => {
     if (!conductor) return;
     setSaving(true);
     try {
       const colonIdx = contextKey.indexOf(':');
       const ctx      = contextKey.slice(0, colonIdx);
       const fieldKey = contextKey.slice(colonIdx + 1);
-      const iso      = editVal;
+      const iso      = dateVal;
 
       if (ctx === 'conductor') {
         await conductorService.updateConductor(conductor.rut, { [fieldKey]: iso } as Partial<Conductor>);
@@ -358,8 +359,8 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
   // ── Preparar datos ──
 
   const rowProps = {
-    editing, editVal, saving,
-    saved, onStartEdit: startEdit, onEditValChange: setEditVal,
+    editing, saving,
+    saved, onStartEdit: startEdit,
     onSave: handleSave, onCancel: () => setEditing(null),
     onUpload: handleUpload,
   };
