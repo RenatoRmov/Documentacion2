@@ -13,6 +13,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
     { id: 'fleet',           label: 'Flota Operativa',   icon: '🚗' },
     { id: 'quick-update',    label: 'Sincronizador',      icon: '⚡' },
     { id: 'expirations',     label: 'Monitor Auditoría',  icon: '⏰' },
+    { id: 'documents',        label: 'Documentos',         icon: '📁' },
     { id: 'automatizaciones', label: 'Alertas Auto',      icon: '🔔' },
     { id: 'assistant',       label: 'Operaciones IA',     icon: '✨' },
   ];

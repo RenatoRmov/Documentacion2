@@ -8,6 +8,7 @@ import GeminiAssistant from './components/GeminiAssistant';
 import VehicleWizard, { ConductorForm, VehicleEntry } from './components/VehicleWizard';
 import QuickUpdate from './components/QuickUpdate';
 import Automatizaciones from './components/Automatizaciones';
+import DocumentCenter from './components/DocumentCenter';
 import { MOCK_VEHICLES } from './constants';
 import { Vehicle } from './types';
 import StatusBadge from './components/StatusBadge';
@@ -191,6 +192,8 @@ const App: React.FC = () => {
             onSendAlert={handleSendAlert}
           />
         );
+      case 'documents':
+        return <DocumentCenter fleet={fleet} />;
       case 'quick-update':
         return <QuickUpdate fleet={fleet} onUpdate={handleQuickUpdate} />;
       case 'assistant':
