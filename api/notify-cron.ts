@@ -3,8 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import {
   groupAlertsByVehicle,
-  sendEmailsToVehicles,
-  sendAdminEmail,
+  sendAllEmails,
   sendWhatsApp,
   type ContactInfo,
 } from './_helpers.js';
@@ -61,15 +60,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let emailsSent = 0, emailsSkipped = 0, waSent = false;
 
   if (hasEmail) {
-    const result = await sendEmailsToVehicles(groups, false, contact);
+    const result = await sendAllEmails(groups, adminEmail || null, false, contact);
     emailsSent    += result.sent;
     emailsSkipped += result.skipped;
     errors.push(...result.errors);
-
-    if (adminEmail && groups.length > 0) {
-      try { await sendAdminEmail(adminEmail, groups, false, contact); }
-      catch (e: unknown) { errors.push(`Admin CC: ${e instanceof Error ? e.message : String(e)}`); }
-    }
   }
 
   if (waNumber && waApiKey) {

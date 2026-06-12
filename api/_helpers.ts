@@ -473,22 +473,23 @@ async function sendViaResend(
   if (error) throw new Error(error.message);
 }
 
-// Sends all conductor emails + admin CC in a SINGLE SMTP session.
-// Returns full stats so callers don't need to manage the transport.
+// Sends emails in ONE SMTP session (one connection, all recipients).
+// - test=true  → only sends admin summary to adminEmail, skips individual conductors
+// - test=false → sends one email per conductor + admin summary CC
 export async function sendAllEmails(
-  groups:      VehicleAlertGroup[],
-  adminEmail:  string | null,
-  test:        boolean,
-  contact:     ContactInfo,
+  groups:     VehicleAlertGroup[],
+  adminEmail: string | null,
+  test:       boolean,
+  contact:    ContactInfo,
 ): Promise<{ sent: number; skipped: number; errors: string[] }> {
-  const fromName   = contact.companyName || 'RadioMovil';
-  const gmailUser  = process.env.GMAIL_USER?.trim() ?? null;
-  const transport  = await createTransport();
+  const fromName  = contact.companyName || 'RadioMovil';
+  const gmailUser = process.env.GMAIL_USER?.trim() ?? null;
+  const transport = await createTransport();
 
   let sent = 0, skipped = 0;
   const errors: string[] = [];
 
-  const doSend = async (to: string, subject: string, html: string, tag: string) => {
+  const doSend = async (to: string, subject: string, html: string, tag: string): Promise<boolean> => {
     try {
       if (transport && gmailUser) {
         await sendViaTransport(transport, gmailUser, fromName, to, subject, html);
@@ -502,18 +503,21 @@ export async function sendAllEmails(
     }
   };
 
-  for (const g of groups) {
-    if (!g.email) { skipped++; continue; }
-    const ok = await doSend(
-      g.email,
-      buildSubjectForVehicle(g, test, contact),
-      buildEmailHtmlForVehicle(g, test, contact),
-      `Móvil ${g.vehicleId} (${g.email})`,
-    );
-    if (ok) sent++;
+  // ── Conductor emails (live mode only) ──────────────────────────────────────
+  if (!test) {
+    for (const g of groups) {
+      if (!g.email) { skipped++; continue; }
+      const ok = await doSend(
+        g.email,
+        buildSubjectForVehicle(g, test, contact),
+        buildEmailHtmlForVehicle(g, test, contact),
+        `Móvil ${g.vehicleId} (${g.email})`,
+      );
+      if (ok) sent++;
+    }
   }
 
-  // Admin CC (always send if address provided and there are groups)
+  // ── Admin summary / CC (always, if address provided and there are groups) ──
   if (adminEmail && groups.length > 0) {
     const totalExp  = groups.reduce((s, g) => s + g.expired.length,  0);
     const totalUpco = groups.reduce((s, g) => s + g.upcoming.length, 0);
@@ -529,20 +533,6 @@ export async function sendAllEmails(
 
   transport?.close();
   return { sent, skipped, errors };
-}
-
-// Keep these as thin wrappers for backward compatibility with notify-cron.ts
-export async function sendEmailsToVehicles(
-  groups: VehicleAlertGroup[], test: boolean, contact: ContactInfo,
-): Promise<{ sent: number; skipped: number; errors: string[] }> {
-  return sendAllEmails(groups, null, test, contact);
-}
-
-export async function sendAdminEmail(
-  to: string, groups: VehicleAlertGroup[], test: boolean, contact: ContactInfo,
-): Promise<void> {
-  const { errors } = await sendAllEmails([], to, test, contact);  // groups=[] so no conductor emails
-  if (errors.length) throw new Error(errors[0]);
 }
 
 export async function sendWhatsApp(

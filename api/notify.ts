@@ -47,17 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       errors.push('Email: configura GMAIL_USER + GMAIL_APP_PASSWORD (recomendado) o RESEND_API_KEY en Vercel.');
     } else {
       const adminAddr = settings.email.address?.trim() || null;
-      // sendAllEmails opens ONE SMTP connection for all sends (conductores + admin CC)
-      const result = await sendAllEmails(
-        test ? [] : groups,   // test mode: skip conductor emails, only send admin summary
-        adminAddr,
-        test,
-        contact,
-      );
+      const result = await sendAllEmails(groups, adminAddr, !!test, contact);
       emailsSent    += result.sent;
       emailsSkipped += result.skipped;
       errors.push(...result.errors);
-      if (test && result.errors.length === 0 && adminAddr) emailsSent = 1;
+      // In test mode, count the admin summary as 1 "sent" for the UI
+      if (test && !errors.length && adminAddr && groups.length > 0) emailsSent = 1;
     }
   }
 
