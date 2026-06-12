@@ -51,22 +51,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     includeMissing,
   );
 
-  const resendKey  = process.env.RESEND_API_KEY  ?? '';
   const adminEmail = process.env.CRON_NOTIFY_EMAIL ?? '';
-  const waNumber   = process.env.CRON_WA_NUMBER  ?? '';
-  const waApiKey   = process.env.CRON_WA_APIKEY  ?? '';
+  const waNumber   = process.env.CRON_WA_NUMBER   ?? '';
+  const waApiKey   = process.env.CRON_WA_APIKEY   ?? '';
+
+  const hasEmail = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) || !!process.env.RESEND_API_KEY;
 
   const errors: string[] = [];
   let emailsSent = 0, emailsSkipped = 0, waSent = false;
 
-  if (resendKey) {
-    const result = await sendEmailsToVehicles(resendKey, groups, false, contact);
+  if (hasEmail) {
+    const result = await sendEmailsToVehicles(groups, false, contact);
     emailsSent    += result.sent;
     emailsSkipped += result.skipped;
     errors.push(...result.errors);
 
     if (adminEmail && groups.length > 0) {
-      try { await sendAdminEmail(resendKey, adminEmail, groups, false, contact); }
+      try { await sendAdminEmail(adminEmail, groups, false, contact); }
       catch (e: unknown) { errors.push(`Admin CC: ${e instanceof Error ? e.message : String(e)}`); }
     }
   }

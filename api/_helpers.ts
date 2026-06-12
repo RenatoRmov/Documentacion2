@@ -413,65 +413,95 @@ export function buildSubjectForVehicle(
   return `📋 Móvil ${g.vehicleId} — Documentos pendientes de registro`;
 }
 
-// ─── Send functions ───────────────────────────────────────────────────────────
+// ─── Unified email sender (Gmail SMTP first, Resend fallback) ─────────────────
+//
+// Priority:
+//   1. Gmail SMTP   → set GMAIL_USER + GMAIL_APP_PASSWORD in Vercel env vars
+//                     (no domain verification needed, sends to anyone)
+//   2. Resend API   → set RESEND_API_KEY + RESEND_FROM_EMAIL (verified domain required
+//                     to send to recipients other than the account owner)
 
-// FROM address: use verified domain if configured, else Resend test sender.
-// Set RESEND_FROM_EMAIL=alertas@radiomovil.cl in Vercel env vars once domain is verified.
-function fromAddress(companyName: string): string {
-  const custom = process.env.RESEND_FROM_EMAIL?.trim();
-  if (custom) return `${companyName} <${custom}>`;
-  return `${companyName} <onboarding@resend.dev>`;
+async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  fromName: string,
+): Promise<void> {
+  const gmailUser = process.env.GMAIL_USER?.trim();
+  const gmailPass = process.env.GMAIL_APP_PASSWORD?.trim();
+
+  if (gmailUser && gmailPass) {
+    const nodemailer = await import('nodemailer');
+    const transport = nodemailer.default.createTransport({
+      service: 'gmail',
+      auth: { user: gmailUser, pass: gmailPass },
+    });
+    const info = await transport.sendMail({
+      from:    `"${fromName}" <${gmailUser}>`,
+      to,
+      subject,
+      html,
+    });
+    if (info.rejected?.length) {
+      throw new Error(`Destinatario rechazado: ${info.rejected.join(', ')}`);
+    }
+    return;
+  }
+
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey) {
+    const fromAddr = (() => {
+      const custom = process.env.RESEND_FROM_EMAIL?.trim();
+      return custom ? `${fromName} <${custom}>` : `${fromName} <onboarding@resend.dev>`;
+    })();
+    const { Resend } = await import('resend');
+    const resend = new Resend(resendKey);
+    const { error } = await resend.emails.send({ from: fromAddr, to, subject, html });
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  throw new Error('Sin servicio de email configurado. Agrega GMAIL_USER+GMAIL_APP_PASSWORD (recomendado) o RESEND_API_KEY en las variables de entorno de Vercel.');
 }
 
 export async function sendEmailsToVehicles(
-  apiKey: string,
   groups: VehicleAlertGroup[],
   test: boolean,
   contact: ContactInfo,
 ): Promise<{ sent: number; skipped: number; errors: string[] }> {
-  const { Resend } = await import('resend');
-  const resend = new Resend(apiKey);
   let sent = 0, skipped = 0;
   const errors: string[] = [];
+  const fromName = contact.companyName || 'RadioMovil';
 
   for (const g of groups) {
     if (!g.email) { skipped++; continue; }
-    const { error } = await resend.emails.send({
-      from:    fromAddress(contact.companyName || 'RadioMovil'),
-      to:      g.email,
-      subject: buildSubjectForVehicle(g, test, contact),
-      html:    buildEmailHtmlForVehicle(g, test, contact),
-    });
-    if (error) {
-      errors.push(`Móvil ${g.vehicleId} (${g.email}): ${error.message}`);
-    } else {
+    try {
+      await sendEmail(g.email, buildSubjectForVehicle(g, test, contact), buildEmailHtmlForVehicle(g, test, contact), fromName);
       sent++;
+    } catch (e: unknown) {
+      errors.push(`Móvil ${g.vehicleId} (${g.email}): ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { sent, skipped, errors };
 }
 
 export async function sendAdminEmail(
-  apiKey: string,
   to: string,
   groups: VehicleAlertGroup[],
   test: boolean,
   contact: ContactInfo,
 ): Promise<void> {
-  const { Resend } = await import('resend');
-  const resend = new Resend(apiKey);
   const totalExp  = groups.reduce((s, g) => s + g.expired.length,  0);
   const totalUpco = groups.reduce((s, g) => s + g.upcoming.length, 0);
   const company   = contact.companyName || 'RadioMovil';
-  const { error } = await resend.emails.send({
-    from:    fromAddress(company),
+  await sendEmail(
     to,
-    subject: test
+    test
       ? `[PRUEBA] Resumen Alertas — ${company}`
       : `🚨 ${company} | ${groups.length} vehículo(s) | VENCIDOS:${totalExp} | POR VENCER:${totalUpco}`,
-    html: buildAdminEmailHtml(groups, test, contact),
-  });
-  if (error) throw new Error(error.message);
+    buildAdminEmailHtml(groups, test, contact),
+    company,
+  );
 }
 
 export async function sendWhatsApp(

@@ -222,7 +222,7 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
                 <span className="text-2xl">📧</span>
                 <div>
                   <p className="text-xs font-black text-white uppercase tracking-widest">Email por conductor</p>
-                  <p className="text-[8px] text-zinc-600 uppercase tracking-widest">Resend — hasta 3.000 correos/mes gratis</p>
+                  <p className="text-[8px] text-zinc-600 uppercase tracking-widest">Gmail o Resend — sin límite práctico</p>
                 </div>
               </div>
               <Toggle on={s.email.enabled} onChange={v => setS(p => ({ ...p, email: { ...p.email, enabled: v } }))} />
@@ -237,9 +237,19 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
               <Field label="Copia al administrador (CC, para recibir prueba)"
                 value={s.email.address} type="email" placeholder="admin@radiomovil.cl"
                 onChange={v => setS(p => ({ ...p, email: { ...p.email, address: v } }))} />
-              <div className="bg-amber-950/30 border border-amber-700/20 rounded-xl p-4">
-                <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1">Requiere en Vercel</p>
-                <p className="text-[8px] text-zinc-500">Variable <span className="text-zinc-200 font-bold font-mono">RESEND_API_KEY</span> → regístrate en <span className="text-[#C29329]">resend.com</span></p>
+              <div className="bg-amber-950/30 border border-amber-700/20 rounded-xl p-4 space-y-3">
+                <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Requiere en Vercel — elige una opción</p>
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black text-emerald-400 uppercase tracking-wider">✅ Opción A — Gmail (recomendado, funciona de inmediato)</p>
+                  <p className="text-[8px] text-zinc-400 font-mono">GMAIL_USER = tucuenta@gmail.com</p>
+                  <p className="text-[8px] text-zinc-400 font-mono">GMAIL_APP_PASSWORD = xxxx xxxx xxxx xxxx</p>
+                  <p className="text-[9px] text-zinc-600">→ Google: Mi cuenta › Seguridad › Verificación en 2 pasos › Contraseñas de aplicación</p>
+                </div>
+                <div className="border-t border-white/5 pt-2 space-y-1">
+                  <p className="text-[8px] font-black text-zinc-500 uppercase tracking-wider">Opción B — Resend (requiere dominio verificado)</p>
+                  <p className="text-[8px] text-zinc-500 font-mono">RESEND_API_KEY = re_xxxxxxxx</p>
+                  <p className="text-[8px] text-zinc-500 font-mono">RESEND_FROM_EMAIL = alertas@radiomovil.cl</p>
+                </div>
               </div>
             </div>
           </div>
@@ -349,7 +359,12 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
             <p className="text-xs font-black text-white uppercase tracking-widest mb-1">Cron Automático Diario</p>
             <p className="text-[8px] text-zinc-600 uppercase tracking-widest mb-4">Ejecuta a las 8:00 AM hora Chile</p>
             <div className="bg-black/30 rounded-lg p-3 font-mono space-y-1 text-[8px] border border-white/5">
-              <p><span className="text-[#C29329]">RESEND_API_KEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tu_clave_resend</span></p>
+              <p><span className="text-zinc-600"># Opción A (Gmail, recomendado):</span></p>
+              <p><span className="text-[#C29329]">GMAIL_USER</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">tucuenta@gmail.com</span></p>
+              <p><span className="text-[#C29329]">GMAIL_APP_PASSWORD</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">xxxx xxxx xxxx xxxx</span></p>
+              <p><span className="text-zinc-600"># Opción B (Resend con dominio verificado):</span></p>
+              <p><span className="text-[#C29329]">RESEND_API_KEY</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">re_xxxxxxxx</span></p>
+              <p><span className="text-[#C29329]">RESEND_FROM_EMAIL</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">alertas@radiomovil.cl</span></p>
               <p><span className="text-[#C29329]">CRON_COMPANY_NAME</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Radiomóvil Nueva Huechuraba</span></p>
               <p><span className="text-[#C29329]">CRON_ADMIN_NAME</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Renato Jesús Oliva Aguirre</span></p>
               <p><span className="text-[#C29329]">CRON_ADMIN_TITLE</span><span className="text-zinc-600"> = </span><span className="text-zinc-400">Encargado de Procesos</span></p>

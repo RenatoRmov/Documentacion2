@@ -42,9 +42,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let emailsSent = 0, emailsSkipped = 0, waSent = false;
 
   if (settings.email?.enabled) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) {
-      errors.push('Email: variable RESEND_API_KEY no configurada en Vercel');
+    const hasGmail  = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+    const hasResend = !!process.env.RESEND_API_KEY;
+    if (!hasGmail && !hasResend) {
+      errors.push('Email: configura GMAIL_USER + GMAIL_APP_PASSWORD (recomendado) o RESEND_API_KEY en Vercel.');
     } else if (test) {
       // Test mode: admin summary only to the configured CC address
       const adminAddr = settings.email.address?.trim();
@@ -52,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         errors.push('Prueba: configura el campo "Copia al administrador" con tu correo para recibir el test.');
       } else {
         try {
-          await sendAdminEmail(key, adminAddr, groups, true, contact);
+          await sendAdminEmail(adminAddr, groups, true, contact);
           emailsSent++;
         } catch (e: unknown) {
           errors.push(`Email prueba: ${e instanceof Error ? e.message : String(e)}`);
@@ -60,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else {
       // Live: one personalized email per conductor
-      const result = await sendEmailsToVehicles(key, groups, false, contact);
+      const result = await sendEmailsToVehicles(groups, false, contact);
       emailsSent    += result.sent;
       emailsSkipped += result.skipped;
       errors.push(...result.errors);
@@ -68,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Admin CC summary
       if (settings.email.address?.trim() && groups.length > 0) {
         try {
-          await sendAdminEmail(key, settings.email.address.trim(), groups, false, contact);
+          await sendAdminEmail(settings.email.address.trim(), groups, false, contact);
         } catch (e: unknown) {
           errors.push(`Email admin CC: ${e instanceof Error ? e.message : String(e)}`);
         }
