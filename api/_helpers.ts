@@ -415,6 +415,14 @@ export function buildSubjectForVehicle(
 
 // ─── Send functions ───────────────────────────────────────────────────────────
 
+// FROM address: use verified domain if configured, else Resend test sender.
+// Set RESEND_FROM_EMAIL=alertas@radiomovil.cl in Vercel env vars once domain is verified.
+function fromAddress(companyName: string): string {
+  const custom = process.env.RESEND_FROM_EMAIL?.trim();
+  if (custom) return `${companyName} <${custom}>`;
+  return `${companyName} <onboarding@resend.dev>`;
+}
+
 export async function sendEmailsToVehicles(
   apiKey: string,
   groups: VehicleAlertGroup[],
@@ -429,10 +437,10 @@ export async function sendEmailsToVehicles(
   for (const g of groups) {
     if (!g.email) { skipped++; continue; }
     const { error } = await resend.emails.send({
-      from: `${contact.companyName || 'RadioMovil'} Alertas <onboarding@resend.dev>`,
-      to:   g.email,
+      from:    fromAddress(contact.companyName || 'RadioMovil'),
+      to:      g.email,
       subject: buildSubjectForVehicle(g, test, contact),
-      html: buildEmailHtmlForVehicle(g, test, contact),
+      html:    buildEmailHtmlForVehicle(g, test, contact),
     });
     if (error) {
       errors.push(`Móvil ${g.vehicleId} (${g.email}): ${error.message}`);
@@ -456,7 +464,7 @@ export async function sendAdminEmail(
   const totalUpco = groups.reduce((s, g) => s + g.upcoming.length, 0);
   const company   = contact.companyName || 'RadioMovil';
   const { error } = await resend.emails.send({
-    from: `${company} Alertas <onboarding@resend.dev>`,
+    from:    fromAddress(company),
     to,
     subject: test
       ? `[PRUEBA] Resumen Alertas — ${company}`
