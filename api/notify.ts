@@ -71,5 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const totalAlerts = groups.reduce((s, g) => s + g.expired.length + g.upcoming.length + g.missing.length, 0);
-  return res.status(200).json({ sent: emailsSent + (waSent ? 1 : 0), alerts: totalAlerts, vehicles: groups.length, emailsSent, emailsSkipped, errors });
+  const emailService = process.env.GMAIL_USER ? 'gmail' : (process.env.RESEND_API_KEY ? 'resend' : 'none');
+  const conductorEmails = groups.map(g => ({ movil: g.vehicleId, email: g.email ?? '(sin email)' }));
+  console.log('[notify] service:', emailService, '| groups:', groups.length, '| conductores:', JSON.stringify(conductorEmails));
+  return res.status(200).json({ sent: emailsSent + (waSent ? 1 : 0), alerts: totalAlerts, vehicles: groups.length, emailsSent, emailsSkipped, errors, emailService, conductorEmails });
 }

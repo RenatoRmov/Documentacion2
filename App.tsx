@@ -164,12 +164,17 @@ const App: React.FC = () => {
         lines.push(`✅ ${data.emailsSent} correo(s) enviado(s) correctamente.`);
       }
       if (data.emailsSkipped > 0) {
-        lines.push(`⚠️ ${data.emailsSkipped} conductor(es) sin email registrado (saltados).`);
+        const skippedList = (data.conductorEmails as {movil:string,email:string}[])
+          ?.filter(c => c.email === '(sin email)')
+          .map(c => `  • Móvil ${c.movil}`)
+          .join('\n') ?? '';
+        lines.push(`⚠️ ${data.emailsSkipped} conductor(es) sin email registrado:\n${skippedList}`);
       }
       if (data.vehicles === 0) {
         lines.push('ℹ️ Sin alertas pendientes: todos los documentos están al día.');
-      } else if (data.emailsSent === 0 && data.emailsSkipped === 0 && !data.errors?.length) {
-        lines.push('ℹ️ Sin alertas pendientes para los móviles seleccionados.');
+      }
+      if (data.emailService) {
+        lines.push(`(Servicio: ${data.emailService})`);
       }
       if (data.errors?.length) {
         lines.push(`\n❌ Errores:\n${(data.errors as string[]).join('\n')}`);
