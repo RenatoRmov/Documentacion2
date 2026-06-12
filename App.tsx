@@ -158,11 +158,24 @@ const App: React.FC = () => {
         body: JSON.stringify({ fleet: targetFleet, settings, test: false }),
       });
       const data = await res.json();
+      const lines: string[] = [];
+
       if (data.emailsSent > 0) {
-        alert(`✓ ${data.emailsSent} alerta(s) enviada(s) correctamente.`);
-      } else {
-        alert('Sin alertas pendientes para los móviles seleccionados (documentos al día o sin email registrado).');
+        lines.push(`✅ ${data.emailsSent} correo(s) enviado(s) correctamente.`);
       }
+      if (data.emailsSkipped > 0) {
+        lines.push(`⚠️ ${data.emailsSkipped} conductor(es) sin email registrado (saltados).`);
+      }
+      if (data.vehicles === 0) {
+        lines.push('ℹ️ Sin alertas pendientes: todos los documentos están al día.');
+      } else if (data.emailsSent === 0 && data.emailsSkipped === 0 && !data.errors?.length) {
+        lines.push('ℹ️ Sin alertas pendientes para los móviles seleccionados.');
+      }
+      if (data.errors?.length) {
+        lines.push(`\n❌ Errores:\n${(data.errors as string[]).join('\n')}`);
+      }
+
+      alert(lines.join('\n') || 'Sin actividad.');
     } catch (e) {
       alert('Error al enviar alertas. Verifica la conexión.');
     }
