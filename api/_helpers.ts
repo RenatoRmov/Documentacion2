@@ -148,8 +148,63 @@ export function groupAlertsByVehicle(
   return groups;
 }
 
-// ─── Email per conductor ──────────────────────────────────────────────────────
-// Simple, personal-looking HTML → avoids Gmail "Promotions" tab classification.
+// ─── Plain-text email for conductor ─────────────────────────────────────────
+// Plain text never goes to Spam or Promotions. Used as the primary body for
+// conductor emails so Gmail treats them as personal messages.
+
+export function buildPlainTextForVehicle(
+  g: VehicleAlertGroup,
+  test: boolean,
+  contact: ContactInfo,
+): string {
+  const company   = contact.companyName || 'RadioMovil';
+  const portalUrl = g.conductorToken ? `${contact.appUrl}/portal?token=${g.conductorToken}` : null;
+
+  const lines: string[] = [];
+
+  if (test) lines.push('[ MENSAJE DE PRUEBA — no es una alerta real ]\n');
+
+  lines.push(`Hola, ${g.conductor}:\n`);
+  lines.push(`Te escribimos desde ${company} para informarte que el Móvil ${g.vehicleId} — Patente ${g.patente} tiene documentos que requieren atención:\n`);
+
+  if (g.expired.length > 0) {
+    lines.push('DOCUMENTOS VENCIDOS:');
+    g.expired.forEach(a => lines.push(`  - ${a.label}: venció el ${a.dateStr} (hace ${Math.abs(a.days)} día${Math.abs(a.days)!==1?'s':''})`));
+    lines.push('');
+  }
+  if (g.upcoming.length > 0) {
+    lines.push('POR VENCER PRÓXIMAMENTE:');
+    g.upcoming.forEach(a => lines.push(`  - ${a.label}: vence el ${a.dateStr} (en ${a.days} día${a.days!==1?'s':''})`));
+    lines.push('');
+  }
+  if (g.missing.length > 0) {
+    lines.push('SIN FECHA REGISTRADA:');
+    g.missing.forEach(l => lines.push(`  - ${l}`));
+    lines.push('');
+  }
+
+  lines.push('Por favor, gestiona la renovación o actualización de estos documentos a la brevedad.\n');
+
+  if (portalUrl) {
+    lines.push(`Puedes actualizar tus documentos directamente desde tu celular:\n${portalUrl}\n`);
+  }
+
+  if (contact.contactEmail || contact.contactWhatsApp) {
+    const parts: string[] = [];
+    if (contact.contactEmail)    parts.push(`Correo: ${contact.contactEmail}`);
+    if (contact.contactWhatsApp) parts.push(`WhatsApp: ${contact.contactWhatsApp}`);
+    lines.push(`Si prefieres enviar los documentos al operador, contáctanos:\n${parts.join('  |  ')}\n`);
+  }
+
+  lines.push('Saludos,');
+  if (contact.adminName)  lines.push(contact.adminName);
+  if (contact.adminTitle) lines.push(contact.adminTitle);
+  lines.push(company);
+
+  return lines.join('\n');
+}
+
+// ─── HTML email for conductor (used as fallback / visual version) ─────────────
 
 export function buildEmailHtmlForVehicle(
   g: VehicleAlertGroup,
@@ -435,15 +490,17 @@ async function sendViaTransport(
   fromName: string,
   to: string,
   subject: string,
-  html: string,
+  body: { text?: string; html?: string },
 ): Promise<void> {
   const info = await transport.sendMail({
     from:    `"${fromName}" <${gmailUser}>`,
-    to, subject, html,
+    to, subject,
+    text:    body.text,
+    html:    body.html,
     headers: {
-      'Importance':    'high',
-      'X-Priority':    '1',
-      'Precedence':    'personal',
+      'Importance': 'high',
+      'X-Priority': '1',
+      'Precedence': 'personal',
     },
   });
   if (info.rejected?.length) {
@@ -455,7 +512,7 @@ async function sendViaResend(
   fromName: string,
   to: string,
   subject: string,
-  html: string,
+  body: { text?: string; html?: string },
 ): Promise<void> {
   const resendKey = process.env.RESEND_API_KEY?.trim();
   if (!resendKey) throw new Error('Sin servicio de email configurado. Agrega GMAIL_USER+GMAIL_APP_PASSWORD (recomendado) o RESEND_API_KEY en Vercel.');
@@ -464,7 +521,11 @@ async function sendViaResend(
     return custom ? `${fromName} <${custom}>` : `${fromName} <onboarding@resend.dev>`;
   })();
   const { Resend } = await import('resend');
-  const { error } = await new Resend(resendKey).emails.send({ from: fromAddr, to, subject, html });
+  const { error } = await new Resend(resendKey).emails.send({
+    from: fromAddr, to, subject,
+    text: body.text,
+    html: body.html,
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -484,12 +545,17 @@ export async function sendAllEmails(
   let sent = 0, skipped = 0;
   const errors: string[] = [];
 
-  const doSend = async (to: string, subject: string, html: string, tag: string): Promise<boolean> => {
+  const doSend = async (
+    to: string,
+    subject: string,
+    body: { text?: string; html?: string },
+    tag: string,
+  ): Promise<boolean> => {
     try {
       if (transport && gmailUser) {
-        await sendViaTransport(transport, gmailUser, fromName, to, subject, html);
+        await sendViaTransport(transport, gmailUser, fromName, to, subject, body);
       } else {
-        await sendViaResend(fromName, to, subject, html);
+        await sendViaResend(fromName, to, subject, body);
       }
       return true;
     } catch (e: unknown) {
@@ -499,13 +565,18 @@ export async function sendAllEmails(
   };
 
   // ── Conductor emails (live mode only) ──────────────────────────────────────
+  // Send as plain text (primary) + HTML (fallback). Plain text ensures Gmail
+  // delivers to Primary inbox instead of Promotions/Spam.
   if (!test) {
     for (const g of groups) {
       if (!g.email) { skipped++; continue; }
       const ok = await doSend(
         g.email,
         buildSubjectForVehicle(g, test, contact),
-        buildEmailHtmlForVehicle(g, test, contact),
+        {
+          text: buildPlainTextForVehicle(g, test, contact),
+          html: buildEmailHtmlForVehicle(g, test, contact),
+        },
         `Móvil ${g.vehicleId} (${g.email})`,
       );
       if (ok) sent++;
@@ -521,7 +592,7 @@ export async function sendAllEmails(
       test
         ? `[PRUEBA] Resumen Alertas — ${fromName}`
         : `🚨 ${fromName} | ${groups.length} vehículo(s) | VENCIDOS:${totalExp} | POR VENCER:${totalUpco}`,
-      buildAdminEmailHtml(groups, test, contact),
+      { html: buildAdminEmailHtml(groups, test, contact) },
       'Admin CC',
     );
   }
