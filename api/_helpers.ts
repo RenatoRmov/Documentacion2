@@ -149,134 +149,116 @@ export function groupAlertsByVehicle(
 }
 
 // ─── Email per conductor ──────────────────────────────────────────────────────
+// Simple, personal-looking HTML → avoids Gmail "Promotions" tab classification.
 
 export function buildEmailHtmlForVehicle(
   g: VehicleAlertGroup,
   test: boolean,
   contact: ContactInfo,
 ): string {
-  const company    = contact.companyName || 'RadioMovil';
-  const portalUrl  = g.conductorToken ? `${contact.appUrl}/portal?token=${g.conductorToken}` : null;
-  const testBanner = test
-    ? `<tr><td style="background:#78350f;color:#fde68a;padding:8px 20px;font-size:11px;font-weight:bold;text-align:center;letter-spacing:1px;">⚠ MENSAJE DE PRUEBA — NO ES UNA ALERTA REAL</td></tr>`
+  const company   = contact.companyName || 'RadioMovil';
+  const portalUrl = g.conductorToken ? `${contact.appUrl}/portal?token=${g.conductorToken}` : null;
+
+  const testNote = test
+    ? `<p style="margin:0 0 20px;padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;font-size:13px;color:#92400e;">
+        <strong>MENSAJE DE PRUEBA</strong> — Este correo no es una alerta real.
+      </p>`
     : '';
 
-  const docRow = (icon: string, bg: string, label: string, detail: string) =>
-    `<tr>
-      <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;">
-        <span style="font-size:16px;line-height:1;">${icon}</span>
-      </td>
-      <td style="padding:10px 14px;border-bottom:1px solid #f3f4f6;background:${bg};width:100%;">
-        <p style="margin:0 0 2px;font-size:13px;font-weight:bold;color:#111;">${label}</p>
-        <p style="margin:0;font-size:11px;color:#6b7280;">${detail}</p>
-      </td>
-    </tr>`;
-
-  const hasAlerts = g.expired.length > 0 || g.upcoming.length > 0 || g.missing.length > 0;
-  const urgencyColor = g.expired.length > 0 ? '#dc2626' : g.upcoming.some(a => a.days <= 7) ? '#d97706' : '#b45309';
-
-  const alertRows = [
-    ...g.expired.map(a  => docRow('🔴', '#fff5f5', a.label, `Venció el ${a.dateStr} · ${Math.abs(a.days)} día${Math.abs(a.days)!==1?'s':''} vencido`)),
-    ...g.upcoming.map(a => docRow(a.days <= 7 ? '🟠' : '🟡', '#fffbeb', a.label, `Vence el ${a.dateStr} · Quedan ${a.days} día${a.days!==1?'s':''}`)),
-    ...g.missing.map(l  => docRow('⚪', '#f9fafb', l, 'Sin fecha registrada en el sistema')),
+  const docLines = [
+    ...g.expired.map(a =>
+      `<tr>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#dc2626;font-weight:bold;">🔴 ${a.label}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">Venció el ${a.dateStr} (hace ${Math.abs(a.days)} día${Math.abs(a.days)!==1?'s':''})</td>
+      </tr>`),
+    ...g.upcoming.map(a =>
+      `<tr>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#d97706;font-weight:bold;">${a.days<=7?'🟠':'🟡'} ${a.label}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">Vence el ${a.dateStr} (en ${a.days} día${a.days!==1?'s':''})</td>
+      </tr>`),
+    ...g.missing.map(l =>
+      `<tr>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;">⚪ ${l}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#9ca3af;">Sin fecha registrada</td>
+      </tr>`),
   ].join('');
 
-  const portalSection = portalUrl ? `
-    <tr><td style="padding:24px;background:#f0fdf4;border-top:1px solid #bbf7d0;border-bottom:1px solid #bbf7d0;text-align:center;">
-      <p style="margin:0 0 6px;font-size:13px;color:#166534;font-weight:bold;">📲 Actualiza tus documentos directamente</p>
-      <p style="margin:0 0 16px;font-size:12px;color:#4b5563;">Puedes subir una foto o PDF desde tu celular con un solo clic.</p>
-      <a href="${portalUrl}"
-        style="display:inline-block;background:#C29329;color:#000;text-decoration:none;font-weight:900;font-size:14px;padding:14px 32px;border-radius:8px;text-transform:uppercase;letter-spacing:1px;">
-        Actualizar mis documentos →
-      </a>
-      <p style="margin:12px 0 0;font-size:10px;color:#9ca3af;">Si el botón no funciona, copia este enlace en tu navegador:<br>
-        <span style="color:#6b7280;word-break:break-all;">${portalUrl}</span>
-      </p>
-    </td></tr>` : '';
+  const total = g.expired.length + g.upcoming.length + g.missing.length;
 
-  const alternativeContact = (contact.contactEmail || contact.contactWhatsApp) ? `
-    <tr><td style="padding:16px 24px;background:#f9fafb;border-top:1px solid #f0f0f0;">
-      <p style="margin:0;font-size:12px;color:#6b7280;text-align:center;">
-        ¿Prefieres enviar los documentos al operador?
-        ${contact.contactEmail ? ` Correo: <a href="mailto:${contact.contactEmail}" style="color:#C29329;">${contact.contactEmail}</a>` : ''}
-        ${contact.contactWhatsApp ? ` &nbsp;·&nbsp; WhatsApp: <strong style="color:#374151;">${contact.contactWhatsApp}</strong>` : ''}
+  const portalBlock = portalUrl
+    ? `<p style="margin:20px 0 8px;font-size:13px;color:#111;">
+        Puedes actualizar tus documentos directamente desde tu celular:
       </p>
-    </td></tr>` : '';
+      <p style="margin:0 0 20px;">
+        <a href="${portalUrl}" style="display:inline-block;background:#1a56db;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold;padding:10px 22px;border-radius:6px;">
+          Actualizar mis documentos →
+        </a>
+      </p>
+      <p style="margin:0 0 20px;font-size:12px;color:#9ca3af;">
+        O copia este enlace: <span style="color:#6b7280;word-break:break-all;">${portalUrl}</span>
+      </p>`
+    : '';
 
-  const signature = (contact.adminName || contact.adminTitle) ? `
-    <tr><td style="padding:20px 24px;border-top:2px solid #C29329;">
-      ${contact.adminName  ? `<p style="margin:0 0 2px;font-size:13px;font-weight:bold;color:#111;">${contact.adminName}</p>` : ''}
-      ${contact.adminTitle ? `<p style="margin:0 0 2px;font-size:12px;color:#555;">${contact.adminTitle}</p>` : ''}
-      <p style="margin:0;font-size:12px;color:#555;">${company}</p>
-    </td></tr>` : '';
+  const contactLine = (contact.contactEmail || contact.contactWhatsApp)
+    ? `<p style="margin:0 0 20px;font-size:13px;color:#374151;">
+        Si prefieres enviar los documentos directamente, contáctame:
+        ${contact.contactEmail ? `correo <a href="mailto:${contact.contactEmail}" style="color:#1a56db;">${contact.contactEmail}</a>` : ''}
+        ${contact.contactWhatsApp ? `· WhatsApp ${contact.contactWhatsApp}` : ''}
+      </p>`
+    : '';
+
+  const sig = `<p style="margin:24px 0 0;font-size:13px;color:#374151;line-height:1.6;">
+    Saludos,<br>
+    <strong>${contact.adminName || company}</strong>${contact.adminTitle ? `<br>${contact.adminTitle}` : ''}<br>
+    ${company}
+  </p>`;
 
   return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,'Helvetica Neue',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Documentos pendientes — Móvil ${g.vehicleId}</title>
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:24px 0;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
 
-        <!-- Header -->
-        <tr><td style="background:#111418;padding:24px;border-bottom:4px solid #C29329;">
-          <p style="margin:0;font-size:22px;font-weight:900;color:#C29329;text-transform:uppercase;letter-spacing:3px;">${company}</p>
-          <p style="margin:4px 0 0;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:2px;">Documentación Vehicular</p>
-        </td></tr>
+  <tr><td style="padding:28px 32px 0;">
+    ${testNote}
+    <p style="margin:0 0 16px;font-size:15px;color:#111;">Hola, <strong>${g.conductor}</strong>:</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.6;">
+      Te contactamos desde <strong>${company}</strong> para informarte que el <strong>Móvil ${g.vehicleId} — Patente ${g.patente}</strong>
+      tiene <strong>${total} documento${total!==1?'s':''}</strong> que ${total!==1?'requieren':'requiere'} atención:
+    </p>
+  </td></tr>
 
-        ${testBanner}
+  <tr><td style="padding:0 32px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;margin-top:4px;">
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:8px 14px;text-align:left;font-size:11px;color:#6b7280;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;">Documento</th>
+          <th style="padding:8px 14px;text-align:left;font-size:11px;color:#6b7280;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>${docLines}</tbody>
+    </table>
+  </td></tr>
 
-        <!-- Greeting + vehicle badge -->
-        <tr><td style="padding:28px 24px 20px;">
-          <p style="margin:0 0 16px;font-size:15px;color:#111;">
-            Hola, <strong>${g.conductor}</strong> 👋
-          </p>
-          <table cellpadding="0" cellspacing="0" style="background:#111418;border-radius:8px;padding:14px 18px;margin-bottom:20px;width:auto;">
-            <tr>
-              <td style="padding-right:24px;">
-                <p style="margin:0 0 2px;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">Móvil</p>
-                <p style="margin:0;font-size:22px;font-weight:900;color:#C29329;font-style:italic;">${g.vehicleId}</p>
-              </td>
-              <td>
-                <p style="margin:0 0 2px;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">Patente</p>
-                <p style="margin:0;font-size:18px;font-weight:900;color:#ffffff;font-style:italic;">${g.patente}</p>
-              </td>
-            </tr>
-          </table>
-          ${hasAlerts ? `
-          <p style="margin:0;font-size:13px;color:#374151;line-height:1.5;">
-            Tienes <strong style="color:${urgencyColor};">${g.expired.length + g.upcoming.length + g.missing.length} documento${(g.expired.length + g.upcoming.length + g.missing.length)!==1?'s':''}</strong>
-            que requieren atención:
-          </p>` : ''}
-        </td></tr>
+  <tr><td style="padding:0 32px 28px;">
+    ${portalBlock}
+    ${contactLine}
+    ${sig}
+  </td></tr>
 
-        <!-- Docs table -->
-        ${hasAlerts ? `
-        <tr><td style="padding:0 24px 24px;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-            ${alertRows}
-          </table>
-        </td></tr>` : ''}
+  <tr><td style="padding:14px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">${company} — Sistema de Gestión Documental</p>
+  </td></tr>
 
-        <!-- Portal CTA -->
-        ${portalSection}
-
-        <!-- Alternative contact -->
-        ${alternativeContact}
-
-        <!-- Signature -->
-        ${signature}
-
-        <!-- Footer -->
-        <tr><td style="padding:14px 24px;text-align:center;background:#f3f4f6;">
-          <p style="margin:0;font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;">
-            ${company} · Sistema de Gestión Documental
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
 }
@@ -400,17 +382,18 @@ export function buildSubjectForVehicle(
   contact: ContactInfo,
 ): string {
   const company = contact.companyName || 'RadioMovil';
-  if (test) return `[PRUEBA] ${company} — Alerta de documentación Móvil ${g.vehicleId}`;
+  if (test) return `[PRUEBA] Documentos Móvil ${g.vehicleId} — ${company}`;
+  // Personal-sounding subject → less likely to be classified as Promotions by Gmail
   if (g.expired.length > 0) {
-    const labels = g.expired.map(a => a.label).slice(0, 2).join(' y ');
-    const extra  = g.expired.length > 2 ? ` (+${g.expired.length - 2} más)` : '';
-    return `⚠️ Móvil ${g.vehicleId} — ${labels}${extra} vencido${g.expired.length > 1 ? 's' : ''}`;
+    const label = g.expired[0].label;
+    const extra = g.expired.length > 1 ? ` y ${g.expired.length - 1} más` : '';
+    return `Aviso importante: ${label}${extra} vencido — Móvil ${g.vehicleId}`;
   }
   if (g.upcoming.length > 0) {
     const soonest = g.upcoming[0];
-    return `📅 Móvil ${g.vehicleId} — ${soonest.label} vence en ${soonest.days} día${soonest.days !== 1 ? 's' : ''}`;
+    return `Por vencer en ${soonest.days} días: ${soonest.label} — Móvil ${g.vehicleId}`;
   }
-  return `📋 Móvil ${g.vehicleId} — Documentos pendientes de registro`;
+  return `Documentos sin registrar — Móvil ${g.vehicleId}, ${g.conductor}`;
 }
 
 // ─── Unified email sender (Gmail SMTP first, Resend fallback) ─────────────────
@@ -457,6 +440,11 @@ async function sendViaTransport(
   const info = await transport.sendMail({
     from:    `"${fromName}" <${gmailUser}>`,
     to, subject, html,
+    headers: {
+      'Importance':    'high',
+      'X-Priority':    '1',
+      'Precedence':    'personal',
+    },
   });
   if (info.rejected?.length) {
     throw new Error(`Destinatario rechazado: ${info.rejected.join(', ')}`);
