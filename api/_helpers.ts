@@ -428,14 +428,21 @@ async function createTransport(
   const gmailUser = process.env.GMAIL_USER?.trim();
   const gmailPass = process.env.GMAIL_APP_PASSWORD?.trim();
   if (!gmailUser || !gmailPass) return null;
-  const nodemailer = await import('nodemailer');
-  return nodemailer.default.createTransport({
-    host:    'smtp.gmail.com',
-    port:    465,
-    secure:  true,
-    auth:    { user: gmailUser, pass: gmailPass },
-    pool:    true,        // reuse connection across all sends
-    maxConnections: 3,
+
+  // Dynamic import handles both CJS default-export and ESM interop safely
+  const nm = await import('nodemailer');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mailer: any = (nm as any).default ?? nm;
+
+  return mailer.createTransport({
+    host:             'smtp.gmail.com',
+    port:             587,
+    secure:           false,   // STARTTLS — more reliable than port 465 in serverless
+    requireTLS:       true,
+    auth:             { user: gmailUser, pass: gmailPass },
+    connectionTimeout: 8000,
+    greetingTimeout:   5000,
+    socketTimeout:     8000,
   });
 }
 

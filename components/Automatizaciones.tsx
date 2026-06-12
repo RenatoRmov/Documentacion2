@@ -132,12 +132,23 @@ const Field: React.FC<{ label: string; value: string; onChange: (v: string) => v
   </div>
 );
 
+interface DiagnoseResult {
+  emailService: 'gmail' | 'resend' | 'none';
+  gmailUser:    string | null;
+  gmailStatus:  string | null;  // 'ok' or error message
+  vehicles:     number;
+  conductorEmails: { movil: string; email: string | null; nombre: string }[];
+  adminEmail:   string | null;
+}
+
 const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
   const [s, setS]             = useState<NotificationSettings>(loadSettings);
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [saved, setSaved]     = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnoseResult, setDiagnoseResult] = useState<DiagnoseResult | null>(null);
 
   const groups      = computeVehicleGroups(fleet, s);
   const withEmail   = groups.filter(g => g.email).length;
@@ -155,6 +166,25 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
     setTimeout(() => setSaved(false), 2500);
   };
 
+  const handleDiagnose = async () => {
+    setDiagnosing(true);
+    setDiagnoseResult(null);
+    setSendResult(null);
+    try {
+      const res = await fetch('/api/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fleet, settings: s }),
+      });
+      const data: DiagnoseResult = await res.json();
+      setDiagnoseResult(data);
+    } catch (e: unknown) {
+      setSendResult({ ok: false, msg: `Error diagnóstico: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setDiagnosing(false);
+    }
+  };
+
   const handleSend = async (test: boolean) => {
     if (!s.email.enabled && !s.whatsapp.enabled) {
       setSendResult({ ok: false, msg: 'Activa al menos un canal (email o WhatsApp) antes de enviar.' });
@@ -162,6 +192,7 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
     }
     setIsSending(true);
     setSendResult(null);
+    setDiagnoseResult(null);
     try {
       const res = await fetch('/api/notify', {
         method: 'POST',
@@ -170,14 +201,40 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
       });
       const data = await res.json();
       const parts: string[] = [];
-      if (test) {
-        if (data.emailsSent > 0) parts.push('Email de prueba enviado al administrador');
-      } else {
-        if (data.emailsSent   > 0) parts.push(`${data.emailsSent} email(s) enviado(s) a conductores`);
-        if (data.emailsSkipped > 0) parts.push(`${data.emailsSkipped} sin correo registrado`);
+
+      if (data.emailService) {
+        parts.push(`Servicio: ${data.emailService.toUpperCase()}`);
       }
-      if (data.errors?.length > 0) parts.push(...data.errors);
-      setSendResult({ ok: res.ok && data.errors?.length === 0, msg: parts.join(' · ') || 'Sin alertas pendientes' });
+
+      if (test) {
+        if (data.emailsSent > 0) parts.push('Prueba enviada al administrador');
+        else if (data.errors?.length === 0) parts.push('Sin alertas pendientes (prueba)');
+      } else {
+        if (data.emailsSent > 0) parts.push(`✓ ${data.emailsSent} email(s) enviados`);
+
+        // Show per-conductor status
+        if (data.conductorEmails?.length > 0) {
+          const details = (data.conductorEmails as { movil: string; email: string }[])
+            .map(c => `Móvil ${c.movil}: ${c.email}`)
+            .join(' | ');
+          parts.push(details);
+        }
+
+        if (data.emailsSkipped > 0) {
+          const missing = (data.conductorEmails as { movil: string; email: string }[] | undefined)
+            ?.filter(c => c.email === '(sin email)')
+            .map(c => `Móvil ${c.movil}`) ?? [];
+          parts.push(`⚠ ${data.emailsSkipped} sin correo: ${missing.join(', ')}`);
+        }
+        if (data.vehicles === 0) parts.push('Sin alertas pendientes');
+      }
+
+      if (data.errors?.length > 0) {
+        parts.push(...(data.errors as string[]));
+      }
+
+      const ok = res.ok && (!data.errors?.length || data.emailsSent > 0);
+      setSendResult({ ok, msg: parts.join(' · ') || 'Sin actividad' });
     } catch (e: unknown) {
       setSendResult({ ok: false, msg: `Error de conexión: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -441,15 +498,91 @@ const Automatizaciones: React.FC<{ fleet: Vehicle[] }> = ({ fleet }) => {
         )}
       </div>
 
+      {/* ── Diagnose result panel ── */}
+      {diagnoseResult && (
+        <div className="bg-[#1B1F24] rounded-2xl border border-white/10 p-5 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between">
+            <p className="text-[9px] font-black text-white uppercase tracking-widest">Diagnóstico del Sistema</p>
+            <button onClick={() => setDiagnoseResult(null)} className="text-zinc-600 hover:text-zinc-400 text-xs">✕</button>
+          </div>
+
+          {/* Service row */}
+          <div className="flex gap-3 flex-wrap">
+            <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${
+              diagnoseResult.emailService === 'gmail'  ? 'bg-emerald-900/30 border-emerald-700/40 text-emerald-400' :
+              diagnoseResult.emailService === 'resend' ? 'bg-blue-900/30 border-blue-700/40 text-blue-400'         :
+                                                         'bg-red-900/30 border-red-700/40 text-red-400'
+            }`}>
+              Servicio: {diagnoseResult.emailService.toUpperCase()}
+            </span>
+
+            {diagnoseResult.emailService === 'gmail' && diagnoseResult.gmailUser && (
+              <span className={`text-[8px] font-black px-3 py-1 rounded-full border ${
+                diagnoseResult.gmailStatus === 'ok'
+                  ? 'bg-emerald-900/30 border-emerald-700/40 text-emerald-400'
+                  : 'bg-red-900/30 border-red-700/40 text-red-400'
+              }`}>
+                {diagnoseResult.gmailStatus === 'ok'
+                  ? `✓ Gmail conectado (${diagnoseResult.gmailUser})`
+                  : `✕ Gmail falla: ${diagnoseResult.gmailStatus}`}
+              </span>
+            )}
+
+            {diagnoseResult.emailService === 'none' && (
+              <span className="text-[8px] font-black px-3 py-1 rounded-full border bg-red-900/30 border-red-700/40 text-red-400">
+                ✕ Sin servicio — agrega GMAIL_USER + GMAIL_APP_PASSWORD en Vercel
+              </span>
+            )}
+
+            {diagnoseResult.adminEmail && (
+              <span className="text-[8px] font-black px-3 py-1 rounded-full border bg-zinc-800 border-white/5 text-zinc-400">
+                Admin CC: {diagnoseResult.adminEmail}
+              </span>
+            )}
+          </div>
+
+          {/* Conductor list */}
+          {diagnoseResult.conductorEmails.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-[7px] font-black text-zinc-600 uppercase tracking-widest">
+                Conductores con alertas ({diagnoseResult.conductorEmails.length}):
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {diagnoseResult.conductorEmails.map((c, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${c.email ? 'bg-black/20 border-white/5' : 'bg-red-950/20 border-red-800/20'}`}>
+                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[#C29329]/20 text-[#C29329] shrink-0">
+                      {c.movil}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[8px] text-zinc-400 truncate">{c.nombre}</p>
+                      {c.email
+                        ? <p className="text-[8px] font-bold text-emerald-400 truncate">✓ {c.email}</p>
+                        : <p className="text-[8px] font-bold text-red-400">✕ Sin correo — edita el conductor y guarda</p>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[8px] text-zinc-600 uppercase tracking-widest">Sin alertas pendientes con la configuración actual</p>
+          )}
+        </div>
+      )}
+
       {sendResult && (
-        <div className={`p-4 rounded-xl border text-[9px] font-black uppercase tracking-widest ${sendResult.ok ? 'bg-emerald-900/20 border-emerald-700/30 text-emerald-400' : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
-          {sendResult.ok ? '✓ ' : '✕ '}{sendResult.msg}
+        <div className={`p-4 rounded-xl border text-[9px] font-bold leading-relaxed ${sendResult.ok ? 'bg-emerald-900/20 border-emerald-700/30 text-emerald-400' : 'bg-red-900/20 border-red-700/30 text-red-400'}`}>
+          {sendResult.msg}
         </div>
       )}
 
       <div className="flex flex-wrap gap-3 justify-end">
         <button onClick={handleSave} className="btn-premium px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">
           {saved ? '✓ Guardado' : 'Guardar Configuración'}
+        </button>
+        <button onClick={handleDiagnose} disabled={diagnosing}
+          className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-500/20 text-blue-400 hover:border-blue-500/40 transition-all disabled:opacity-30">
+          {diagnosing ? 'Verificando...' : '🔍 Verificar Sistema'}
         </button>
         <button onClick={() => handleSend(true)} disabled={isSending}
           className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-30">
