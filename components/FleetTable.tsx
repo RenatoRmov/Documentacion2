@@ -64,7 +64,9 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
     if (!onSendAlert) return;
     setSendingAlert(true);
     try {
-      await onSendAlert([...selected]);
+      // If nothing selected → send to all visible vehicles
+      const targets = selected.size > 0 ? [...selected] : filtered.map(v => v.patente);
+      await onSendAlert(targets);
     } finally {
       setSendingAlert(false);
     }

@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   groupAlertsByVehicle,
-  sendEmailsToVehicles,
-  sendAdminEmail,
+  sendAllEmails,
   sendWhatsApp,
   type ContactInfo,
 } from './_helpers.js';
@@ -46,34 +45,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hasResend = !!process.env.RESEND_API_KEY;
     if (!hasGmail && !hasResend) {
       errors.push('Email: configura GMAIL_USER + GMAIL_APP_PASSWORD (recomendado) o RESEND_API_KEY en Vercel.');
-    } else if (test) {
-      // Test mode: admin summary only to the configured CC address
-      const adminAddr = settings.email.address?.trim();
-      if (!adminAddr) {
-        errors.push('Prueba: configura el campo "Copia al administrador" con tu correo para recibir el test.');
-      } else {
-        try {
-          await sendAdminEmail(adminAddr, groups, true, contact);
-          emailsSent++;
-        } catch (e: unknown) {
-          errors.push(`Email prueba: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
     } else {
-      // Live: one personalized email per conductor
-      const result = await sendEmailsToVehicles(groups, false, contact);
+      const adminAddr = settings.email.address?.trim() || null;
+      // sendAllEmails opens ONE SMTP connection for all sends (conductores + admin CC)
+      const result = await sendAllEmails(
+        test ? [] : groups,   // test mode: skip conductor emails, only send admin summary
+        adminAddr,
+        test,
+        contact,
+      );
       emailsSent    += result.sent;
       emailsSkipped += result.skipped;
       errors.push(...result.errors);
-
-      // Admin CC summary
-      if (settings.email.address?.trim() && groups.length > 0) {
-        try {
-          await sendAdminEmail(settings.email.address.trim(), groups, false, contact);
-        } catch (e: unknown) {
-          errors.push(`Email admin CC: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      if (test && result.errors.length === 0 && adminAddr) emailsSent = 1;
     }
   }
 
