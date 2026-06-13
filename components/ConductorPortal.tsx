@@ -168,13 +168,13 @@ const DocRow: React.FC<DocRowProps> = ({
           )}
           {!isEditing && !wasSaved && status !== 'ok' && (
             <button onClick={() => onStartEdit(contextKey)}
-              className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all border border-white/5">
+              className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
               Actualizar
             </button>
           )}
           {!isEditing && !wasSaved && status === 'ok' && (
             <button onClick={() => onStartEdit(contextKey)}
-              className="text-[7px] font-black uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors">
+              className="text-[9px] font-black uppercase tracking-wide px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors border border-white/5 hover:border-white/10">
               Editar
             </button>
           )}
@@ -182,45 +182,65 @@ const DocRow: React.FC<DocRowProps> = ({
       </div>
 
       {isEditing && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 bg-black/20">
-          <input type="date" value={localDate} onChange={e => setLocalDate(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C29329]/50 transition-colors" />
+        <div className="px-4 pb-5 pt-3 space-y-4 border-t border-white/10 bg-[#0f1117]">
 
-          {/* File upload */}
+          {/* Fecha — fondo blanco para máxima legibilidad en cualquier móvil */}
+          <div>
+            <label className="block text-[10px] font-black text-zinc-300 uppercase tracking-widest mb-2">
+              Nueva fecha de vencimiento
+            </label>
+            <input
+              type="date"
+              value={localDate}
+              onChange={e => setLocalDate(e.target.value)}
+              style={{ colorScheme: 'light' }}
+              className="w-full bg-white border-2 border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 font-semibold focus:outline-none focus:border-[#C29329] transition-colors"
+            />
+          </div>
+
+          {/* Subir documento */}
           {hasUrlField && (
-            <div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-zinc-300 uppercase tracking-widest">
+                Documento (foto o PDF)
+              </label>
               <input ref={fileRef} type="file" accept="image/*,.pdf,.heic,.heif"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(contextKey, f); e.target.value = ''; }}
               />
               <button type="button" onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className={`w-full py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${
+                className={`w-full py-3.5 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${
                   uploading
-                    ? 'bg-zinc-800 border-zinc-700 text-zinc-500 animate-pulse'
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-400 animate-pulse'
                     : urlValue
-                    ? 'bg-white/5 border-white/10 text-zinc-400 hover:text-white'
-                    : 'bg-[#C29329]/10 border-[#C29329]/30 text-[#C29329] hover:bg-[#C29329]/20'
+                    ? 'bg-white/5 border-white/10 text-zinc-300 hover:text-white'
+                    : 'bg-[#C29329]/10 border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/20'
                 }`}>
-                {uploading ? '↑ Subiendo...' : urlValue ? '📎 Reemplazar documento' : '📎 Adjuntar documento'}
+                {uploading ? '⏳ Subiendo...' : urlValue ? '📎 Reemplazar documento' : '📎 Adjuntar foto o PDF'}
               </button>
               {urlValue && !uploading && (
                 <a href={urlValue} target="_blank" rel="noopener noreferrer"
-                  className="block text-center text-[8px] font-black text-emerald-400 mt-1 hover:text-emerald-300 transition-colors">
-                  Ver documento actual →
+                  className="block text-center text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors py-1">
+                  Ver documento subido →
                 </a>
               )}
-              <p className="text-[7px] text-zinc-700 text-center mt-1">Acepta fotos (JPG, HEIC) y PDF</p>
+              <p className="text-[10px] text-zinc-600 text-center">Acepta fotos (JPG, HEIC) y PDF</p>
             </div>
           )}
 
-          <div className="flex gap-2">
-            <button onClick={() => onSave(contextKey, localDate)} disabled={saving || (!localDate && !urlValue)}
-              className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-[#C29329]/20 border border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/30 transition-all disabled:opacity-30">
-              {saving ? 'Guardando...' : 'Guardar'}
+          {/* Botones */}
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={() => onSave(contextKey, localDate)}
+              disabled={saving || (!localDate && !urlValue)}
+              className="flex-1 py-4 rounded-xl text-sm font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
+              {saving ? 'Guardando...' : '✓ Guardar'}
             </button>
-            <button onClick={onCancel} disabled={saving}
-              className="px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-white/10 text-zinc-500 hover:text-white transition-all">
+            <button
+              onClick={onCancel}
+              disabled={saving}
+              className="px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide border-2 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all">
               Cancelar
             </button>
           </div>

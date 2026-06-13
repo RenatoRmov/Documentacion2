@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { vehicleService } from './services/vehicleService';
+import { supabase } from './lib/supabaseClient';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import FleetTable from './components/FleetTable';
@@ -19,14 +20,12 @@ const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
-  // Cargar datos desde Supabase
-  const loadFleet = async () => {
+  const loadFleet = useCallback(async () => {
     try {
       const data = await vehicleService.fetchVehicles();
       setFleet(data);
     } catch (error) {
       console.error("Error al cargar la flota:", error);
-      // Fallback a localStorage/Mock si falla Supabase en desarrollo
       const saved = localStorage.getItem('radiomovil_fleet');
       if (saved) {
         setFleet(JSON.parse(saved));
@@ -34,16 +33,23 @@ const App: React.FC = () => {
         setFleet(MOCK_VEHICLES);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadFleet();
-  }, []);
 
-  // Función auxiliar para actualizar estado local y recargar
-  const refreshFleet = async () => {
-    await loadFleet();
-  };
+    // Escucha cambios en Supabase en tiempo real — se actualiza cuando un conductor
+    // sube un documento o el admin edita desde otra sesión.
+    const channel = supabase
+      .channel('fleet-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' },   () => loadFleet())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conductores' }, () => loadFleet())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadFleet]);
+
+  const refreshFleet = () => loadFleet();
 
   const handleAddVehicle = () => {
     setEditingVehicle(null);
