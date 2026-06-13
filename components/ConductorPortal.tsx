@@ -182,27 +182,35 @@ const DocRow: React.FC<DocRowProps> = ({
       </div>
 
       {isEditing && (
-        <div className="px-4 pb-5 pt-3 space-y-4 border-t border-white/10 bg-[#0f1117]">
+        <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/8 bg-[#13161c]">
 
-          {/* Fecha — fondo blanco para máxima legibilidad en cualquier móvil */}
+          {/* Fecha */}
           <div>
-            <label className="block text-[10px] font-black text-zinc-300 uppercase tracking-widest mb-2">
-              Nueva fecha de vencimiento
+            <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+              Fecha de vencimiento
             </label>
-            <input
-              type="date"
-              value={localDate}
-              onChange={e => setLocalDate(e.target.value)}
-              style={{ colorScheme: 'light' }}
-              className="w-full bg-white border-2 border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 font-semibold focus:outline-none focus:border-[#C29329] transition-colors"
-            />
+            <div className="relative">
+              <input
+                type="date"
+                value={localDate}
+                onChange={e => setLocalDate(e.target.value)}
+                style={{ colorScheme: 'light' }}
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 font-medium focus:outline-none focus:border-amber-400 transition-colors"
+              />
+              {/* Placeholder visible cuando no hay fecha seleccionada */}
+              {!localDate && (
+                <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                  <span className="text-sm text-gray-400">dd / mm / aaaa</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Subir documento */}
           {hasUrlField && (
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-zinc-300 uppercase tracking-widest">
-                Documento (foto o PDF)
+            <div className="space-y-1.5">
+              <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                Foto o PDF del documento
               </label>
               <input ref={fileRef} type="file" accept="image/*,.pdf,.heic,.heif"
                 className="hidden"
@@ -210,37 +218,36 @@ const DocRow: React.FC<DocRowProps> = ({
               />
               <button type="button" onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className={`w-full py-3.5 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${
+                className={`w-full py-3 rounded-lg text-[11px] font-bold border transition-all flex items-center justify-center gap-2 ${
                   uploading
                     ? 'bg-zinc-800 border-zinc-700 text-zinc-400 animate-pulse'
                     : urlValue
                     ? 'bg-white/5 border-white/10 text-zinc-300 hover:text-white'
-                    : 'bg-[#C29329]/10 border-[#C29329]/40 text-[#C29329] hover:bg-[#C29329]/20'
+                    : 'bg-[#C29329]/10 border-[#C29329]/30 text-[#C29329] hover:bg-[#C29329]/20'
                 }`}>
                 {uploading ? '⏳ Subiendo...' : urlValue ? '📎 Reemplazar documento' : '📎 Adjuntar foto o PDF'}
               </button>
               {urlValue && !uploading && (
                 <a href={urlValue} target="_blank" rel="noopener noreferrer"
-                  className="block text-center text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors py-1">
-                  Ver documento subido →
+                  className="block text-center text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors py-0.5">
+                  Ver documento actual →
                 </a>
               )}
-              <p className="text-[10px] text-zinc-600 text-center">Acepta fotos (JPG, HEIC) y PDF</p>
             </div>
           )}
 
           {/* Botones */}
-          <div className="flex gap-3 pt-1">
+          <div className="flex gap-2 pt-1">
             <button
               onClick={() => onSave(contextKey, localDate)}
               disabled={saving || (!localDate && !urlValue)}
-              className="flex-1 py-4 rounded-xl text-sm font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
+              className="flex-1 py-3 rounded-lg text-[11px] font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
               {saving ? 'Guardando...' : '✓ Guardar'}
             </button>
             <button
               onClick={onCancel}
               disabled={saving}
-              className="px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide border-2 border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all">
+              className="px-5 py-3 rounded-lg text-[11px] font-black uppercase tracking-wide border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all">
               Cancelar
             </button>
           </div>
