@@ -23,12 +23,12 @@ const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string }[] = [
   { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir' },
 ];
 
-const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean }[] = [
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean }[] = [
   { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
   { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
-  { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
+  { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro', hasTaxToggle: true },
   { docKey: 'vencimientoPadron',             label: 'Padrón', fileOnly: true },
 ];
 
@@ -103,16 +103,26 @@ function daysLabel(dateStr: string): string {
   return `Vence en ${days} días`;
 }
 
+type TaxStatus = 'Sin Información' | 'SUJETO' | 'No Aplica';
+
+function getTaxStatusFromValue(val: string): TaxStatus {
+  const lower = (val || '').toLowerCase().trim();
+  if (lower === 'no aplica') return 'No Aplica';
+  if (!lower || lower === 'sin información') return 'Sin Información';
+  return 'SUJETO'; // fecha real o 'sujeto a control'
+}
+
 // ─── DocRow ───────────────────────────────────────────────────────────────────
 
 interface DocRowProps {
-  contextKey: string;
-  label: string;
-  value: string;
-  status: DocStatus;
-  urlValue?: string;
-  fileOnly?: boolean;
-  editing: string | null;
+  contextKey:    string;
+  label:         string;
+  value:         string;
+  status:        DocStatus;
+  urlValue?:     string;
+  fileOnly?:     boolean;
+  hasTaxToggle?: boolean;
+  editing:       string | null;
   saving: boolean;
   uploading: boolean;
   saved: Set<string>;
@@ -123,7 +133,7 @@ interface DocRowProps {
 }
 
 const DocRow: React.FC<DocRowProps> = ({
-  contextKey, label, value, status, urlValue, fileOnly,
+  contextKey, label, value, status, urlValue, fileOnly, hasTaxToggle,
   editing, saving, uploading, saved,
   onStartEdit, onSave, onCancel, onUpload,
 }) => {
@@ -134,14 +144,24 @@ const DocRow: React.FC<DocRowProps> = ({
   const fieldKey  = contextKey.slice(contextKey.indexOf(':') + 1);
   const hasUrlField = fieldKey in DATE_TO_URL_KEY;
 
-  // localDate persiste entre re-renders causados por upload (cambio de urlValue).
-  // Solo se reinicializa cuando se ENTRA a modo edición (transición false→true).
-  const [localDate, setLocalDate] = useState('');
+  // Estado local de fecha y toggle de taxímetro
+  const [localDate,      setLocalDate]      = useState('');
+  const [localTaxStatus, setLocalTaxStatus] = useState<TaxStatus>('Sin Información');
   const wasEditing = useRef(false);
   useEffect(() => {
-    if (isEditing && !wasEditing.current) setLocalDate(toInputDate(value));
+    if (isEditing && !wasEditing.current) {
+      setLocalDate(toInputDate(value));
+      if (hasTaxToggle) setLocalTaxStatus(getTaxStatusFromValue(value));
+    }
     wasEditing.current = isEditing;
   });
+
+  // Valor a guardar según el toggle del taxímetro
+  const taxSaveValue = (): string => {
+    if (localTaxStatus === 'No Aplica')       return 'No Aplica';
+    if (localTaxStatus === 'Sin Información')  return '';
+    return localDate || 'Sujeto a Control';
+  };
 
   return (
     <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
@@ -183,7 +203,8 @@ const DocRow: React.FC<DocRowProps> = ({
             </div>
           )}
         </div>
-        {status !== 'na' && (
+        {/* Botón de acción — visible también para 'na' cuando tiene toggle de taxímetro */}
+        {(status !== 'na' || hasTaxToggle) && (
           <div className="flex items-center gap-2 shrink-0">
             {wasSaved && !isEditing && (
               <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
@@ -194,27 +215,45 @@ const DocRow: React.FC<DocRowProps> = ({
                 {urlValue ? 'Reemplazar' : 'Adjuntar'}
               </button>
             )}
-            {!isEditing && !wasSaved && !fileOnly && status !== 'ok' && (
-              <button onClick={() => onStartEdit(contextKey)}
-                className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
-                Actualizar
-              </button>
-            )}
             {!isEditing && !wasSaved && !fileOnly && status === 'ok' && (
               <button onClick={() => onStartEdit(contextKey)}
                 className="text-[9px] font-black uppercase tracking-wide px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors border border-white/5 hover:border-white/10">
                 Editar
               </button>
             )}
+            {!isEditing && !wasSaved && !fileOnly && status !== 'ok' && (
+              <button onClick={() => onStartEdit(contextKey)}
+                className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
+                {status === 'na' ? 'Cambiar' : 'Actualizar'}
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {isEditing && status !== 'na' && (
+      {/* Panel de edición — se abre también para 'na' cuando tiene toggle de taxímetro */}
+      {isEditing && (hasTaxToggle || status !== 'na') && (
         <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/8 bg-[#13161c]">
 
-          {/* Fecha de vencimiento — no se muestra para documentos sin fecha */}
-          {!fileOnly && (
+          {/* Toggle de taxímetro */}
+          {hasTaxToggle && (
+            <div>
+              <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+                ¿Aplica taxímetro en este vehículo?
+              </label>
+              <select
+                value={localTaxStatus}
+                onChange={e => setLocalTaxStatus(e.target.value as TaxStatus)}
+                className="w-full bg-[#1B1F24] border border-white/10 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-amber-400 transition-colors">
+                <option value="Sin Información">— Sin información</option>
+                <option value="SUJETO">📅 Sujeto a control (tiene taxímetro)</option>
+                <option value="No Aplica">✗ No aplica (sin taxímetro)</option>
+              </select>
+            </div>
+          )}
+
+          {/* Fecha de vencimiento */}
+          {!fileOnly && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div>
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
                 Fecha de vencimiento
@@ -237,7 +276,7 @@ const DocRow: React.FC<DocRowProps> = ({
           )}
 
           {/* Subir documento */}
-          {hasUrlField && (
+          {hasUrlField && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div className="space-y-1.5">
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
                 {fileOnly ? 'Foto o PDF del Padrón' : 'Foto o PDF del documento'}
@@ -269,8 +308,11 @@ const DocRow: React.FC<DocRowProps> = ({
           {/* Botones */}
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => onSave(contextKey, fileOnly ? '' : localDate)}
-              disabled={saving || (fileOnly ? !urlValue : !localDate && !urlValue)}
+              onClick={() => onSave(contextKey, hasTaxToggle ? taxSaveValue() : fileOnly ? '' : localDate)}
+              disabled={saving || (hasTaxToggle
+                ? false
+                : fileOnly ? !urlValue : !localDate && !urlValue
+              )}
               className="flex-1 py-3 rounded-lg text-[11px] font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
               {saving ? 'Guardando...' : fileOnly ? '✓ Listo' : '✓ Guardar'}
             </button>
@@ -303,12 +345,13 @@ const InfoRow = ({ label, value }: { label: string; value?: string }) =>
 
 // Tipo compartido para las filas de documentos
 interface DocItem {
-  contextKey: string;
-  label:      string;
-  value:      string;
-  status:     DocStatus;
-  urlValue?:  string;
-  fileOnly?:  boolean;
+  contextKey:    string;
+  label:         string;
+  value:         string;
+  status:        DocStatus;
+  urlValue?:     string;
+  fileOnly?:     boolean;
+  hasTaxToggle?: boolean;
 }
 
 // Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
@@ -522,7 +565,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       const status   = d.fileOnly
         ? ((urlValue ? 'ok' : 'missing') as DocStatus)
         : getDocStatus(value);
-      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly };
+      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle };
     });
     return { vehicle: v, docs };
   });
