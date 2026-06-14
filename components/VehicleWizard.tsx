@@ -421,11 +421,6 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                       disabled={!conductor.rut}
                     />
                   </div>
-                  <div className="p-4 bg-amber-950/5 rounded-2xl border border-amber-900/10 space-y-3">
-                    <p className="text-[8px] font-black text-amber-700 uppercase tracking-widest">Seguro de Vida</p>
-                    <Field label="Vencimiento"><input name="vencimientoSeguroVida" type="date" value={toISODate(conductor.vencimientoSeguroVida)} onChange={handleConductorChange} className={inputCls(true)} /></Field>
-                    <Field label="Aseguradora"><input name="aseguradoraVida" value={conductor.aseguradoraVida} onChange={handleConductorChange} className={inputCls()} /></Field>
-                  </div>
                 </div>
               </div>
             </div>
@@ -660,9 +655,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           {/* Seguros */}
           <div>
             <SectionLabel>Seguros del Vehículo</SectionLabel>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-start">
-              <VF label="Seguro Accidentes"><input name="vencimientoSeguroAccidentes" type="date" value={toISODate(v.vencimientoSeguroAccidentes)} onChange={onChange} className={iCls(true)} /></VF>
-              <VF label="Compañía"><input name="lugarSeguroAccidentes" value={v.lugarSeguroAccidentes} onChange={onChange} className={iCls()} /></VF>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-start">
               <VDF label="Seguro Asiento" fieldKey="urlSeguroAsiento" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoSeguroAsiento" type="date" value={toISODate(v.vencimientoSeguroAsiento)} onChange={onChange} className={iCls(true)} />
               </VDF>

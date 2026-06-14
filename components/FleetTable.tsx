@@ -101,9 +101,6 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
         'Control Taxímetro':        v.vencimientoControlTaximetro,
         'Seg. Asiento Venc.':       v.vencimientoSeguroAsiento,
         'Aseguradora Asiento':      v.aseguradoraAsiento,
-        'Seg. Accidentes Venc.':    v.vencimientoSeguroAccidentes,
-        'Lugar Seg. Accidentes':    v.lugarSeguroAccidentes,
-
         // ── Cumplimiento ──
         'Cert. Antecedentes':  v.certificadoAntecedentes,
         'Prestación SS':       v.prestacionSS,
@@ -126,8 +123,6 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
         'Municipalidad Licencia': v.municipalidadLicencia,
         'Licencia Desde':         v.vigenciaLicenciaDesde,
         'Licencia Hasta':         v.vigenciaLicenciaHasta,
-        'Seg. Vida Conductor Venc.': v.vencimientoSeguroVidaConductor,
-        'Aseguradora Vida':          v.aseguradoraVida,
       }));
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
