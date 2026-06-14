@@ -15,22 +15,21 @@ const DATE_TO_URL_KEY: Record<string, string> = {
   vencimientoSOAP:               'urlSOAP',
   vencimientoPadron:             'urlPadron',
   vencimientoSeguroAsiento:      'urlSeguroAsiento',
+  vencimientoControlTaximetro:   'urlControlTaximetro',
 };
 
 const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string }[] = [
-  { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Conductor' },
+  { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad' },
   { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir' },
-  { docKey: 'vencimientoSeguroVida', label: 'Seguro de Vida' },
 ];
 
 const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string }[] = [
   { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
-  { docKey: 'vencimientoPadron',             label: 'Padrón' },
-  { docKey: 'vencimientoSeguroAccidentes',   label: 'Seguro de Accidentes' },
-  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asiento' },
+  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
   { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
+  { docKey: 'vencimientoPadron',             label: 'Padrón' },
 ];
 
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
@@ -149,41 +148,49 @@ const DocRow: React.FC<DocRowProps> = ({
           <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${meta.text}`}>{label}</p>
           {!isEditing && (
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-[10px] text-zinc-300 font-bold">
-                {formatDate(value)}
-                {(status === 'expired' || status === 'urgent' || status === 'soon') && (
-                  <span className={`ml-2 text-[8px] font-black ${meta.text}`}>· {daysLabel(value)}</span>
-                )}
-              </p>
-              {urlValue && (
-                <a href={urlValue} target="_blank" rel="noopener noreferrer"
-                  className="text-[8px] font-black text-emerald-400 bg-emerald-900/20 border border-emerald-700/20 px-2 py-0.5 rounded-lg hover:bg-emerald-900/30 transition-all whitespace-nowrap">
-                  📎 Ver doc
-                </a>
+              {status === 'na' ? (
+                <p className="text-[10px] text-zinc-600 font-bold italic">No aplica para este vehículo</p>
+              ) : (
+                <>
+                  <p className="text-[10px] text-zinc-300 font-bold">
+                    {formatDate(value)}
+                    {(status === 'expired' || status === 'urgent' || status === 'soon') && (
+                      <span className={`ml-2 text-[8px] font-black ${meta.text}`}>· {daysLabel(value)}</span>
+                    )}
+                  </p>
+                  {urlValue && (
+                    <a href={urlValue} target="_blank" rel="noopener noreferrer"
+                      className="text-[8px] font-black text-emerald-400 bg-emerald-900/20 border border-emerald-700/20 px-2 py-0.5 rounded-lg hover:bg-emerald-900/30 transition-all whitespace-nowrap">
+                      📎 Ver doc
+                    </a>
+                  )}
+                </>
               )}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {wasSaved && !isEditing && (
-            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
-          )}
-          {!isEditing && !wasSaved && status !== 'ok' && (
-            <button onClick={() => onStartEdit(contextKey)}
-              className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
-              Actualizar
-            </button>
-          )}
-          {!isEditing && !wasSaved && status === 'ok' && (
-            <button onClick={() => onStartEdit(contextKey)}
-              className="text-[9px] font-black uppercase tracking-wide px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors border border-white/5 hover:border-white/10">
-              Editar
-            </button>
-          )}
-        </div>
+        {status !== 'na' && (
+          <div className="flex items-center gap-2 shrink-0">
+            {wasSaved && !isEditing && (
+              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
+            )}
+            {!isEditing && !wasSaved && status !== 'ok' && (
+              <button onClick={() => onStartEdit(contextKey)}
+                className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
+                Actualizar
+              </button>
+            )}
+            {!isEditing && !wasSaved && status === 'ok' && (
+              <button onClick={() => onStartEdit(contextKey)}
+                className="text-[9px] font-black uppercase tracking-wide px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors border border-white/5 hover:border-white/10">
+                Editar
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {isEditing && (
+      {isEditing && status !== 'na' && (
         <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/8 bg-[#13161c]">
 
           {/* Fecha */}
@@ -328,6 +335,7 @@ const GroupedDocs: React.FC<{
   const soon    = docs.filter(d => d.status === 'soon');
   const ok      = docs.filter(d => d.status === 'ok');
   const missing = docs.filter(d => d.status === 'missing');
+  const na      = docs.filter(d => d.status === 'na');
   return (
     <div className="space-y-4">
       <DocSection title="🔴 Vencidos"             color="text-red-400"    items={expired} uploading={uploading} handlers={handlers} />
@@ -346,6 +354,7 @@ const GroupedDocs: React.FC<{
           </div>
         </div>
       )}
+      <DocSection title="— No aplica"             color="text-zinc-700"   items={na}      uploading={uploading} handlers={handlers} />
     </div>
   );
 };
@@ -478,7 +487,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
     const urlKey   = DATE_TO_URL_KEY[fieldKey];
     const urlValue = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
     return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined };
-  }).filter(d => d.status !== 'na');
+  });
 
   const vehicleSections = vehicles.map(v => {
     const docs = VEHICLE_DOCS.map(d => {
@@ -487,7 +496,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       const urlKey   = DATE_TO_URL_KEY[fieldKey];
       const urlValue = urlKey ? String((v as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
       return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined };
-    }).filter(d => d.status !== 'na');
+    });
     return { vehicle: v, docs };
   });
 

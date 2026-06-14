@@ -80,6 +80,7 @@ export interface Vehicle {
   urlRevisionTecnica?: string;
   urlSOAP?: string;
   urlSeguroAsiento?: string;
+  urlControlTaximetro?: string;
   urlCarnet?: string;
   urlLicencia?: string;
 }

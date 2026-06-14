@@ -63,6 +63,7 @@ const mapVehicleFromDB = (data: Record<string, unknown>): Vehicle => {
         urlRevisionTecnica:    String(data.url_revision_tecnica ?? ''),
         urlSOAP:               String(data.url_soap ?? ''),
         urlSeguroAsiento:      String(data.url_seguro_asiento ?? ''),
+        urlControlTaximetro:   String(data.url_control_taximetro ?? ''),
         urlCarnet:             String(c?.url_carnet ?? ''),
         urlLicencia:           String(c?.url_licencia ?? ''),
     };
@@ -158,6 +159,7 @@ const mapVehicleToDB = (vehicle: Partial<Vehicle>): Record<string, unknown> => {
     if (vehicle.urlRevisionTecnica    !== undefined) d.url_revision_tecnica    = vehicle.urlRevisionTecnica    || null;
     if (vehicle.urlSOAP               !== undefined) d.url_soap                = vehicle.urlSOAP               || null;
     if (vehicle.urlSeguroAsiento      !== undefined) d.url_seguro_asiento      = vehicle.urlSeguroAsiento      || null;
+    if (vehicle.urlControlTaximetro   !== undefined) d.url_control_taximetro   = vehicle.urlControlTaximetro   || null;
     return d;
 };
 
