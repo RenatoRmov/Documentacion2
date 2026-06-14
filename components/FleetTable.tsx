@@ -49,9 +49,7 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
   // ── Copy portal link ──
 
   const copyPortalLink = (v: Vehicle) => {
-    const token = v.conductorToken;
-    if (!token) { alert('Este conductor no tiene token de portal asignado.'); return; }
-    const url = `${window.location.origin}/portal?token=${token}`;
+    const url = `${window.location.origin}/portal`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(v.patente);
       setTimeout(() => setCopied(null), 2000);
@@ -76,12 +74,35 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
 
   const handleExportExcel = () => {
     const dataToExport = fleet.map(v => ({
-      'Móvil': v.id, 'Patente': v.patente, 'Estado Operativo': v.statusOperativo,
-      'Tipo': v.tipo, 'Marca': v.marca, 'Modelo': v.modelo, 'Año': v.año,
-      'Conductor': v.nombreConductor,
-      'Venc. Revisión Técnica': v.vencimientoRevisionTecnica,
-      'Venc. Permiso Circulación': v.vencimientoPermisoCirculacion,
-      'Venc. SOAP': v.vencimientoSOAP,
+      'Móvil':              v.id,
+      'Patente':            v.patente,
+      'Estado':             v.statusOperativo,
+      'Tipo':               v.tipo,
+      'Marca':              v.marca,
+      'Modelo':             v.modelo,
+      'Año':                v.año,
+      'Color':              v.color,
+      'Conductor':          v.nombreConductor,
+      'RUT Conductor':      v.rutConductor,
+      'Celular':            v.celular,
+      'Email':              v.email,
+      'Carnet (venc.)':     v.vigenciaCarnetHasta,
+      'Licencia (venc.)':   v.vigenciaLicenciaHasta,
+      'Clase Licencia':     v.claseLicencia,
+      'Municipalidad Lic.': v.municipalidadLicencia,
+      'Permiso Circ. (venc.)':  v.vencimientoPermisoCirculacion,
+      'Municipalidad Permiso':  v.municipalidadPermiso,
+      'Rev. Técnica (venc.)':   v.vencimientoRevisionTecnica,
+      'SOAP (venc.)':           v.vencimientoSOAP,
+      'Seg. Asiento (venc.)':   v.vencimientoSeguroAsiento,
+      'Aseguradora Asiento':    v.aseguradoraAsiento,
+      'Control Taxímetro':      v.vencimientoControlTaximetro,
+      'Padrón (archivo)':       v.urlPadron ? 'Adjunto' : 'Sin adjunto',
+      'Propietario':            v.nombrePropietario,
+      'RUT Propietario':        v.rutPropietario,
+      'Cert. Antecedentes':     v.certificadoAntecedentes,
+      'Prestación SS':          v.prestacionSS,
+      'Contrato Arriendo':      v.contratoArriendo,
     }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
@@ -201,11 +222,9 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
                           className={`p-2.5 rounded-lg transition-all border border-white/5 ${
                             copied === v.patente
                               ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                              : v.conductorToken
-                              ? 'text-zinc-600 hover:text-blue-400 bg-white/[0.02] hover:bg-blue-500/10'
-                              : 'text-zinc-800 cursor-not-allowed'
+                              : 'text-zinc-600 hover:text-blue-400 bg-white/[0.02] hover:bg-blue-500/10'
                           }`}
-                          title={copied === v.patente ? '¡Copiado!' : v.conductorToken ? 'Copiar link portal conductor' : 'Sin token de portal'}>
+                          title={copied === v.patente ? '¡Copiado!' : 'Copiar link portal conductores'}>
                           {copied === v.patente ? '✓' : '🔗'}
                         </button>
 

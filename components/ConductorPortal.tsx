@@ -446,7 +446,7 @@ const GroupedDocs: React.FC<{
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
+const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, rut: rutProp }) => {
   const [conductor, setConductor] = useState<Conductor | null>(null);
   const [vehicles,  setVehicles]  = useState<Vehicle[]>([]);
   const [contact,   setContact]   = useState<PortalContact | null>(null);
@@ -460,8 +460,10 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
   useEffect(() => {
     (async () => {
       try {
-        const c = await conductorService.fetchConductorByToken(token);
-        if (!c) { setError('Enlace inválido o no encontrado.'); return; }
+        const c = token
+          ? await conductorService.fetchConductorByToken(token)
+          : await conductorService.fetchConductorByRut(rutProp!);
+        if (!c) { setError('Conductor no encontrado.'); return; }
         const [vs, ct] = await Promise.all([
           vehicleService.fetchVehiclesByRut(c.rut),
           settingsService.loadContact(),
@@ -475,7 +477,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token, rutProp]);
 
   const startEdit = (contextKey: string) => setEditing(contextKey);
 

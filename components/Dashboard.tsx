@@ -16,17 +16,13 @@ const Dashboard: React.FC<DashboardProps> = ({ fleet, onSelectVehicle }) => {
   thirtyDaysFromNow.setDate(today.getDate() + 30);
 
   const auditFields: { key: keyof Vehicle; label: string }[] = [
+    { key: 'vigenciaCarnetHasta',           label: 'Carnet de Identidad' },
+    { key: 'vigenciaLicenciaHasta',         label: 'Licencia de Conducir' },
     { key: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
-    { key: 'vencimientoControlTaximetro', label: 'Control Taxímetro' },
-    { key: 'vencimientoRevisionTecnica', label: 'Revisión Técnica' },
-    { key: 'vencimientoSOAP', label: 'SOAP' },
-    { key: 'prestacionSS', label: 'Prestación de SS' },
-    { key: 'contratoArriendo', label: 'Contrato de Arriendo' },
-    { key: 'vencimientoSeguroAccidentes', label: 'Seguro Accidentes' },
-    { key: 'vencimientoSeguroAsiento', label: 'Seguro Asientos' },
-    { key: 'vencimientoSeguroVidaConductor', label: 'Seguro Vida' },
-    { key: 'vigenciaCarnetHasta', label: 'Carnet de Identidad' },
-    { key: 'vigenciaLicenciaHasta', label: 'Licencia Operativa' },
+    { key: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
+    { key: 'vencimientoSOAP',               label: 'SOAP' },
+    { key: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
+    { key: 'vencimientoControlTaximetro',   label: 'Control Taxímetro' },
   ];
 
   const stats = fleet.reduce((acc, v) => {
@@ -49,9 +45,9 @@ const Dashboard: React.FC<DashboardProps> = ({ fleet, onSelectVehicle }) => {
 
       // 2. Vencimientos
       const docValues = [
+        v.vigenciaCarnetHasta, v.vigenciaLicenciaHasta,
         v.vencimientoPermisoCirculacion, v.vencimientoRevisionTecnica, v.vencimientoSOAP,
-        v.vigenciaCarnetHasta, v.vigenciaLicenciaHasta, v.vencimientoSeguroAccidentes,
-        v.vencimientoSeguroAsiento, v.vencimientoSeguroVidaConductor, v.vencimientoControlTaximetro
+        v.vencimientoSeguroAsiento, v.vencimientoControlTaximetro,
       ];
 
       const validDocs = docValues.filter(d => d && d.toLowerCase() !== 'no aplica' && d !== 'Sin Información' && d.trim() !== '');
