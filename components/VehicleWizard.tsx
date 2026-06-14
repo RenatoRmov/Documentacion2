@@ -441,28 +441,30 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                 </button>
               </div>
 
-              {vehicles.map((v, idx) => (
-                <VehicleCard
-                  key={idx}
-                  idx={idx}
-                  v={v}
-                  isExpanded={expanded === idx}
-                  isOnly={vehicles.length === 1}
-                  onToggle={() => setExpanded(expanded === idx ? -1 : idx)}
-                  onChange={(e) => handleVehicleChange(idx, e)}
-                  onRemove={() => removeVehicle(idx)}
-                  getTaxStatus={() => getTaxStatus(v)}
-                  onTaxToggle={(e) => {
-                    const val = e.target.value;
-                    // Al seleccionar SUJETO se guarda 'Sujeto a Control' como sentinel
-                    // (cadena vacía se confundiría con 'Sin Información')
-                    setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoControlTaximetro: val === 'SUJETO' ? 'Sujeto a Control' : val } : vv));
-                  }}
-                  isEditing={isEditing}
-                  onUpload={(field, file) => handleVehicleUpload(idx, field, file)}
-                  isUploading={(field) => uploadingFields.has(`${idx}-${field}`)}
-                />
-              ))}
+              {(() => {
+                const existingPatentes = new Set(initialVehicles.map(iv => iv.patente));
+                return vehicles.map((v, idx) => (
+                  <VehicleCard
+                    key={idx}
+                    idx={idx}
+                    v={v}
+                    isExpanded={expanded === idx}
+                    isOnly={vehicles.length === 1}
+                    onToggle={() => setExpanded(expanded === idx ? -1 : idx)}
+                    onChange={(e) => handleVehicleChange(idx, e)}
+                    onRemove={() => removeVehicle(idx)}
+                    getTaxStatus={() => getTaxStatus(v)}
+                    onTaxToggle={(e) => {
+                      const val = e.target.value;
+                      setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoControlTaximetro: val === 'SUJETO' ? 'Sujeto a Control' : val } : vv));
+                    }}
+                    isEditing={isEditing}
+                    isExistingVehicle={existingPatentes.has(v.patente)}
+                    onUpload={(field, file) => handleVehicleUpload(idx, field, file)}
+                    isUploading={(field) => uploadingFields.has(`${idx}-${field}`)}
+                  />
+                ));
+              })()}
             </div>
           )}
         </div>
@@ -554,7 +556,8 @@ const VDF = ({ label, fieldKey, vehicle, isUploading, onUpload, children }: {
 );
 
 interface VehicleCardProps {
-  idx: number; v: VehicleEntry; isExpanded: boolean; isOnly: boolean; isEditing: boolean;
+  idx: number; v: VehicleEntry; isExpanded: boolean; isOnly: boolean;
+  isEditing: boolean; isExistingVehicle: boolean;
   onToggle: () => void; onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onRemove: () => void; getTaxStatus: () => string;
   onTaxToggle: (e: React.ChangeEvent<HTMLSelectElement>) => void;
@@ -563,7 +566,7 @@ interface VehicleCardProps {
 }
 
 const VehicleCard: React.FC<VehicleCardProps> = ({
-  idx, v, isExpanded, isOnly, isEditing, onToggle, onChange, onRemove,
+  idx, v, isExpanded, isOnly, isEditing, isExistingVehicle, onToggle, onChange, onRemove,
   getTaxStatus, onTaxToggle, onUpload, isUploading,
 }) => {
   const iCls = (date = false) =>
@@ -588,7 +591,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {!isOnly && !isEditing && (
+          {!isOnly && (!isEditing || !isExistingVehicle) && (
             <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
               className="p-1.5 text-zinc-700 hover:text-red-500 transition-colors text-[10px]">✕</button>
           )}
@@ -604,7 +607,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <SectionLabel>Especificaciones</SectionLabel>
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3">
-              <VF label="Patente *"><input name="patente" value={v.patente} onChange={onChange} disabled={isEditing} className={iCls()} /></VF>
+              <VF label="Patente *"><input name="patente" value={v.patente} onChange={onChange} disabled={isExistingVehicle} className={iCls()} /></VF>
               <VF label="Tipo"><VS name="tipo" value={v.tipo} onChange={onChange} opts={[
                 { label: 'Automóvil', value: 'AUTOMOVIL' }, { label: 'Station Wagon', value: 'STATION WAGON' },
                 { label: 'SUV', value: 'SUV' }, { label: 'Minibus', value: 'MINIBUS' },
