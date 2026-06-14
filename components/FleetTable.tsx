@@ -73,38 +73,71 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
   // ── Excel export ──
 
   const handleExportExcel = () => {
-    const dataToExport = fleet.map(v => ({
-      'Móvil':              v.id,
-      'Patente':            v.patente,
-      'Estado':             v.statusOperativo,
-      'Tipo':               v.tipo,
-      'Marca':              v.marca,
-      'Modelo':             v.modelo,
-      'Año':                v.año,
-      'Color':              v.color,
-      'Conductor':          v.nombreConductor,
-      'RUT Conductor':      v.rutConductor,
-      'Celular':            v.celular,
-      'Email':              v.email,
-      'Carnet (venc.)':     v.vigenciaCarnetHasta,
-      'Licencia (venc.)':   v.vigenciaLicenciaHasta,
-      'Clase Licencia':     v.claseLicencia,
-      'Municipalidad Lic.': v.municipalidadLicencia,
-      'Permiso Circ. (venc.)':  v.vencimientoPermisoCirculacion,
-      'Municipalidad Permiso':  v.municipalidadPermiso,
-      'Rev. Técnica (venc.)':   v.vencimientoRevisionTecnica,
-      'SOAP (venc.)':           v.vencimientoSOAP,
-      'Seg. Asiento (venc.)':   v.vencimientoSeguroAsiento,
-      'Aseguradora Asiento':    v.aseguradoraAsiento,
-      'Control Taxímetro':      v.vencimientoControlTaximetro,
-      'Padrón (archivo)':       v.urlPadron ? 'Adjunto' : 'Sin adjunto',
-      'Propietario':            v.nombrePropietario,
-      'RUT Propietario':        v.rutPropietario,
-      'Cert. Antecedentes':     v.certificadoAntecedentes,
-      'Prestación SS':          v.prestacionSS,
-      'Contrato Arriendo':      v.contratoArriendo,
-    }));
+    const dataToExport = fleet
+      .sort((a, b) => parseInt(a.id) - parseInt(b.id))
+      .map(v => ({
+        // ── Identificación del vehículo ──
+        'Móvil':              v.id,
+        'Patente':            v.patente,
+        'Estado Operativo':   v.statusOperativo,
+        'Estado (Casa/Ext)':  v.estado,
+        'Tipo':               v.tipo,
+        'Marca':              v.marca,
+        'Modelo':             v.modelo,
+        'Año':                v.año,
+        'Color':              v.color,
+        'Asientos':           v.asientos,
+
+        // ── Propietario ──
+        'Nombre Propietario': v.nombrePropietario,
+        'RUT Propietario':    v.rutPropietario,
+
+        // ── Documentos del vehículo ──
+        'Padrón':                   v.urlPadron ? 'Adjunto' : 'Sin adjunto',
+        'Permiso Circ. Venc.':      v.vencimientoPermisoCirculacion,
+        'Municipalidad Permiso':    v.municipalidadPermiso,
+        'Rev. Técnica Venc.':       v.vencimientoRevisionTecnica,
+        'SOAP Venc.':               v.vencimientoSOAP,
+        'Control Taxímetro':        v.vencimientoControlTaximetro,
+        'Seg. Asiento Venc.':       v.vencimientoSeguroAsiento,
+        'Aseguradora Asiento':      v.aseguradoraAsiento,
+        'Seg. Accidentes Venc.':    v.vencimientoSeguroAccidentes,
+        'Lugar Seg. Accidentes':    v.lugarSeguroAccidentes,
+
+        // ── Cumplimiento ──
+        'Cert. Antecedentes':  v.certificadoAntecedentes,
+        'Prestación SS':       v.prestacionSS,
+        'Contrato Arriendo':   v.contratoArriendo,
+
+        // ── Conductor ──
+        'Nombre Conductor':    v.nombreConductor,
+        'RUT Conductor':       v.rutConductor,
+        'Fecha Nacimiento':    v.fechaNacimiento,
+        'Celular':             v.celular,
+        'Email':               v.email,
+        'Dirección':           v.direccion,
+        'Comuna':              v.comuna,
+
+        // ── Documentos del conductor ──
+        'Carnet Desde':           v.vigenciaCarnetDesde,
+        'Carnet Hasta':           v.vigenciaCarnetHasta,
+        'Licencia Clase':         v.claseLicencia,
+        'Licencia Ley':           v.leyLicencia,
+        'Municipalidad Licencia': v.municipalidadLicencia,
+        'Licencia Desde':         v.vigenciaLicenciaDesde,
+        'Licencia Hasta':         v.vigenciaLicenciaHasta,
+        'Seg. Vida Conductor Venc.': v.vencimientoSeguroVidaConductor,
+        'Aseguradora Vida':          v.aseguradoraVida,
+      }));
+
     const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Ancho de columnas automático basado en el contenido máximo
+    const colWidths = Object.keys(dataToExport[0] ?? {}).map(key => ({
+      wch: Math.max(key.length, ...dataToExport.map(row => String((row as Record<string, unknown>)[key] ?? '').length)) + 2,
+    }));
+    ws['!cols'] = colWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Flota RadioMovil');
     XLSX.writeFile(wb, `Flota_RadioMovil_${new Date().toISOString().split('T')[0]}.xlsx`);
