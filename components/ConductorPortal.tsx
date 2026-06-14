@@ -263,20 +263,12 @@ const DocRow: React.FC<DocRowProps> = ({
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
                 Fecha de vencimiento
               </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={localDate}
-                  onChange={e => setLocalDate(e.target.value)}
-                  style={{ colorScheme: 'light' }}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
-                />
-                {!localDate && (
-                  <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
-                    <span className="text-[13px] text-gray-400">dd / mm / aaaa</span>
-                  </div>
-                )}
-              </div>
+              <input
+                type="date"
+                value={localDate}
+                onChange={e => setLocalDate(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]"
+              />
             </div>
           )}
 
@@ -291,7 +283,7 @@ const DocRow: React.FC<DocRowProps> = ({
                 value={localExtra}
                 onChange={e => setLocalExtra(e.target.value)}
                 placeholder="Ej: Santiago, Las Condes..."
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 transition-colors"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
           )}
