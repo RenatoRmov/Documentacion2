@@ -627,7 +627,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
             <SectionLabel>Documentos del Vehículo</SectionLabel>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-start">
               <VDF label="Padrón" fieldKey="urlPadron" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
-                <input name="vencimientoPadron" type="date" value={toISODate(v.vencimientoPadron)} onChange={onChange} className={iCls(true)} />
+                {null}
               </VDF>
               <VDF label="P. Circulación" fieldKey="urlPermisoCirculacion" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
                 <input name="vencimientoPermisoCirculacion" type="date" value={toISODate(v.vencimientoPermisoCirculacion)} onChange={onChange} className={iCls(true)} />
