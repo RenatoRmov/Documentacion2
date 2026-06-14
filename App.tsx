@@ -131,6 +131,7 @@ const App: React.FC = () => {
           urlRevisionTecnica: ve.urlRevisionTecnica,
           urlSOAP: ve.urlSOAP,
           urlSeguroAsiento: ve.urlSeguroAsiento,
+          urlControlTaximetro: ve.urlControlTaximetro,
         };
         const exists = fleet.some(fv => fv.patente === ve.patente);
         if (exists) {

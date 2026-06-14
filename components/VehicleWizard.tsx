@@ -29,6 +29,7 @@ export interface VehicleEntry {
   vencimientoSeguroAsiento: string; aseguradoraAsiento: string;
   urlPadron?: string; urlPermisoCirculacion?: string;
   urlRevisionTecnica?: string; urlSOAP?: string; urlSeguroAsiento?: string;
+  urlControlTaximetro?: string;
 }
 
 // ─── Valores vacíos ──────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ const EMPTY_VEHICLE: VehicleEntry = {
   vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
   urlPadron: '', urlPermisoCirculacion: '',
   urlRevisionTecnica: '', urlSOAP: '', urlSeguroAsiento: '',
+  urlControlTaximetro: '',
 };
 
 // ─── Helpers de campos ───────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ function vehicleToEntry(v: Vehicle): VehicleEntry {
     urlRevisionTecnica: v.urlRevisionTecnica || '',
     urlSOAP: v.urlSOAP || '',
     urlSeguroAsiento: v.urlSeguroAsiento || '',
+    urlControlTaximetro: v.urlControlTaximetro || '',
   };
 }
 
@@ -644,7 +647,9 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
                 ]} />
               </VF>
               {taxStatus === 'SUJETO' && (
-                <VF label="Próx. Control"><input name="vencimientoControlTaximetro" type="date" value={toISODate(v.vencimientoControlTaximetro)} onChange={onChange} className={iCls(true)} /></VF>
+                <VDF label="Control Taxímetro" fieldKey="urlControlTaximetro" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
+                  <input name="vencimientoControlTaximetro" type="date" value={toISODate(v.vencimientoControlTaximetro)} onChange={onChange} className={iCls(true)} />
+                </VDF>
               )}
             </div>
           </div>
