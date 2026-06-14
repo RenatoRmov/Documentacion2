@@ -61,6 +61,7 @@ export const conductorService = {
     if (updates.vigenciaLicenciaHasta !== undefined) dbData.vigencia_licencia_hasta = updates.vigenciaLicenciaHasta || null;
     if (updates.vencimientoSeguroVida !== undefined) dbData.vencimiento_seguro_vida = updates.vencimientoSeguroVida || null;
     if (updates.aseguradoraVida       !== undefined) dbData.aseguradora_vida        = updates.aseguradoraVida;
+    if (updates.municipalidadLicencia !== undefined) dbData.municipalidad_licencia = updates.municipalidadLicencia || null;
     if (updates.celular     !== undefined) dbData.celular      = updates.celular;
     if (updates.email       !== undefined) dbData.email        = updates.email;
     if (updates.urlCarnet   !== undefined) dbData.url_carnet   = updates.urlCarnet   || null;

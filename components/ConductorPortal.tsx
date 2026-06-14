@@ -18,13 +18,15 @@ const DATE_TO_URL_KEY: Record<string, string> = {
   vencimientoControlTaximetro:   'urlControlTaximetro',
 };
 
-const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string }[] = [
+const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; extraField?: { key: keyof Conductor; label: string } }[] = [
   { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad' },
-  { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir' },
+  { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir',
+    extraField: { key: 'municipalidadLicencia', label: 'Municipalidad que la otorga' } },
 ];
 
-const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean }[] = [
-  { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean; extraField?: { key: keyof Vehicle; label: string } }[] = [
+  { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación',
+    extraField: { key: 'municipalidadPermiso', label: 'Municipalidad que lo otorga' } },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
   { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
@@ -122,18 +124,19 @@ interface DocRowProps {
   urlValue?:     string;
   fileOnly?:     boolean;
   hasTaxToggle?: boolean;
+  extraField?:   { key: string; label: string; value: string };
   editing:       string | null;
-  saving: boolean;
-  uploading: boolean;
-  saved: Set<string>;
+  saving:        boolean;
+  uploading:     boolean;
+  saved:         Set<string>;
   onStartEdit: (contextKey: string) => void;
-  onSave: (contextKey: string, dateVal: string) => void;
+  onSave: (contextKey: string, dateVal: string, extra?: Record<string, string>) => void;
   onCancel: () => void;
   onUpload: (contextKey: string, file: File) => Promise<void>;
 }
 
 const DocRow: React.FC<DocRowProps> = ({
-  contextKey, label, value, status, urlValue, fileOnly, hasTaxToggle,
+  contextKey, label, value, status, urlValue, fileOnly, hasTaxToggle, extraField,
   editing, saving, uploading, saved,
   onStartEdit, onSave, onCancel, onUpload,
 }) => {
@@ -144,13 +147,15 @@ const DocRow: React.FC<DocRowProps> = ({
   const fieldKey  = contextKey.slice(contextKey.indexOf(':') + 1);
   const hasUrlField = fieldKey in DATE_TO_URL_KEY;
 
-  // Estado local de fecha y toggle de taxímetro
+  // Estado local de fecha, municipalidad y toggle de taxímetro
   const [localDate,      setLocalDate]      = useState('');
+  const [localExtra,     setLocalExtra]     = useState('');
   const [localTaxStatus, setLocalTaxStatus] = useState<TaxStatus>('Sin Información');
   const wasEditing = useRef(false);
   useEffect(() => {
     if (isEditing && !wasEditing.current) {
       setLocalDate(toInputDate(value));
+      if (extraField) setLocalExtra(extraField.value || '');
       if (hasTaxToggle) setLocalTaxStatus(getTaxStatusFromValue(value));
     }
     wasEditing.current = isEditing;
@@ -275,6 +280,22 @@ const DocRow: React.FC<DocRowProps> = ({
             </div>
           )}
 
+          {/* Municipalidad (opcional, solo para licencia y permiso de circulación) */}
+          {extraField && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
+            <div>
+              <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+                {extraField.label}
+              </label>
+              <input
+                type="text"
+                value={localExtra}
+                onChange={e => setLocalExtra(e.target.value)}
+                placeholder="Ej: Santiago, Las Condes..."
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-400 transition-colors"
+              />
+            </div>
+          )}
+
           {/* Subir documento */}
           {hasUrlField && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div className="space-y-1.5">
@@ -308,7 +329,11 @@ const DocRow: React.FC<DocRowProps> = ({
           {/* Botones */}
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => onSave(contextKey, hasTaxToggle ? taxSaveValue() : fileOnly ? '' : localDate)}
+              onClick={() => onSave(
+                contextKey,
+                hasTaxToggle ? taxSaveValue() : fileOnly ? '' : localDate,
+                extraField ? { [extraField.key]: localExtra } : undefined
+              )}
               disabled={saving || (hasTaxToggle
                 ? false
                 : fileOnly ? !urlValue : !localDate && !urlValue
@@ -352,6 +377,7 @@ interface DocItem {
   urlValue?:     string;
   fileOnly?:     boolean;
   hasTaxToggle?: boolean;
+  extraField?:   { key: string; label: string; value: string };
 }
 
 // Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
@@ -360,7 +386,7 @@ interface RowHandlers {
   saving:       boolean;
   saved:        Set<string>;
   onStartEdit:  (key: string) => void;
-  onSave:       (key: string, date: string) => void;
+  onSave:       (key: string, date: string, extra?: Record<string, string>) => void;
   onCancel:     () => void;
   onUpload:     (key: string, file: File) => Promise<void>;
 }
@@ -460,7 +486,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
 
   const startEdit = (contextKey: string) => setEditing(contextKey);
 
-  const handleSave = async (contextKey: string, dateVal: string) => {
+  const handleSave = async (contextKey: string, dateVal: string, extra?: Record<string, string>) => {
     if (!conductor) return;
     setSaving(true);
     try {
@@ -470,11 +496,11 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       const iso      = dateVal;
 
       if (ctx === 'conductor') {
-        await conductorService.updateConductor(conductor.rut, { [fieldKey]: iso } as Partial<Conductor>);
+        await conductorService.updateConductor(conductor.rut, { [fieldKey]: iso, ...extra } as Partial<Conductor>);
         const displayVal = fromISODate(iso) || iso;
-        setConductor(prev => prev ? { ...prev, [fieldKey]: displayVal } : null);
+        setConductor(prev => prev ? { ...prev, [fieldKey]: displayVal, ...extra } : null);
       } else {
-        const updated = await vehicleService.updateVehicle(ctx, { [fieldKey]: iso } as Partial<Vehicle>);
+        const updated = await vehicleService.updateVehicle(ctx, { [fieldKey]: iso, ...extra } as Partial<Vehicle>);
         setVehicles(prev => prev.map(v => v.patente === ctx ? updated : v));
       }
       setEditing(null);
@@ -548,11 +574,16 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
   };
 
   const conductorDocs = CONDUCTOR_DOCS.map(d => {
-    const fieldKey = String(d.docKey);
-    const value    = String((conductor as unknown as Record<string, unknown>)[fieldKey] ?? '');
-    const urlKey   = DATE_TO_URL_KEY[fieldKey];
-    const urlValue = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
-    return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined };
+    const fieldKey   = String(d.docKey);
+    const value      = String((conductor as unknown as Record<string, unknown>)[fieldKey] ?? '');
+    const urlKey     = DATE_TO_URL_KEY[fieldKey];
+    const urlValue   = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
+    const extraField = d.extraField ? {
+      key:   String(d.extraField.key),
+      label: d.extraField.label,
+      value: String((conductor as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+    } : undefined;
+    return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined, extraField };
   });
 
   const vehicleSections = vehicles.map(v => {
@@ -562,10 +593,15 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       const urlKey   = DATE_TO_URL_KEY[fieldKey];
       const urlValue = urlKey ? String((v as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
       // Para documentos sin fecha (fileOnly), el estado depende de si hay archivo adjunto
-      const status   = d.fileOnly
+      const status     = d.fileOnly
         ? ((urlValue ? 'ok' : 'missing') as DocStatus)
         : getDocStatus(value);
-      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle };
+      const extraField = d.extraField ? {
+        key:   String(d.extraField.key),
+        label: d.extraField.label,
+        value: String((v as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+      } : undefined;
+      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle, extraField };
     });
     return { vehicle: v, docs };
   });
