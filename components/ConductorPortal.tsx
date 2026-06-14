@@ -18,15 +18,15 @@ const DATE_TO_URL_KEY: Record<string, string> = {
   vencimientoControlTaximetro:   'urlControlTaximetro',
 };
 
-const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; extraField?: { key: keyof Conductor; label: string } }[] = [
+const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; extraField?: { key: keyof Conductor; label: string; placeholder?: string } }[] = [
   { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad' },
   { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir',
-    extraField: { key: 'municipalidadLicencia', label: 'Municipalidad que la otorga' } },
+    extraField: { key: 'municipalidadLicencia', label: 'Municipalidad que la otorga', placeholder: 'Ej: Santiago, Las Condes...' } },
 ];
 
-const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean; extraField?: { key: keyof Vehicle; label: string } }[] = [
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean; extraField?: { key: keyof Vehicle; label: string; placeholder?: string } }[] = [
   { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación',
-    extraField: { key: 'municipalidadPermiso', label: 'Municipalidad que lo otorga' } },
+    extraField: { key: 'municipalidadPermiso', label: 'Municipalidad que lo otorga', placeholder: 'Ej: Santiago, Las Condes...' } },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
   { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos',
@@ -125,7 +125,7 @@ interface DocRowProps {
   urlValue?:     string;
   fileOnly?:     boolean;
   hasTaxToggle?: boolean;
-  extraField?:   { key: string; label: string; value: string };
+  extraField?:   { key: string; label: string; value: string; placeholder?: string };
   editing:       string | null;
   saving:        boolean;
   uploading:     boolean;
@@ -283,7 +283,7 @@ const DocRow: React.FC<DocRowProps> = ({
                 type="text"
                 value={localExtra}
                 onChange={e => setLocalExtra(e.target.value)}
-                placeholder="Ej: Santiago, Las Condes..."
+                placeholder={extraField.placeholder ?? ''}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 transition-colors"
               />
             </div>
@@ -370,7 +370,7 @@ interface DocItem {
   urlValue?:     string;
   fileOnly?:     boolean;
   hasTaxToggle?: boolean;
-  extraField?:   { key: string; label: string; value: string };
+  extraField?:   { key: string; label: string; value: string; placeholder?: string };
 }
 
 // Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
@@ -572,9 +572,10 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
     const urlKey     = DATE_TO_URL_KEY[fieldKey];
     const urlValue   = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
     const extraField = d.extraField ? {
-      key:   String(d.extraField.key),
-      label: d.extraField.label,
-      value: String((conductor as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+      key:         String(d.extraField.key),
+      label:       d.extraField.label,
+      value:       String((conductor as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+      placeholder: d.extraField.placeholder,
     } : undefined;
     return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined, extraField };
   });
@@ -590,9 +591,10 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         ? ((urlValue ? 'ok' : 'missing') as DocStatus)
         : getDocStatus(value);
       const extraField = d.extraField ? {
-        key:   String(d.extraField.key),
-        label: d.extraField.label,
-        value: String((v as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+        key:         String(d.extraField.key),
+        label:       d.extraField.label,
+        value:       String((v as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
+        placeholder: d.extraField.placeholder,
       } : undefined;
       return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle, extraField };
     });
