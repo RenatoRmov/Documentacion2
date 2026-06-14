@@ -23,13 +23,13 @@ const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string }[] = [
   { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir' },
 ];
 
-const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string }[] = [
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean }[] = [
   { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación' },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
   { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
   { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro' },
-  { docKey: 'vencimientoPadron',             label: 'Padrón' },
+  { docKey: 'vencimientoPadron',             label: 'Padrón', fileOnly: true },
 ];
 
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ function getDaysUntil(dateStr: string): number | null {
 function formatDate(dateStr: string): string {
   if (!dateStr || !dateStr.trim() || dateStr === 'Sin Información') return 'Sin fecha';
   if (dateStr === 'No Aplica') return 'No aplica';
+  if (dateStr.toLowerCase().trim() === 'sujeto a control') return 'Sin fecha';
   let iso = dateStr;
   if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
     const [d, m, y] = dateStr.split('-');
@@ -110,6 +111,7 @@ interface DocRowProps {
   value: string;
   status: DocStatus;
   urlValue?: string;
+  fileOnly?: boolean;
   editing: string | null;
   saving: boolean;
   uploading: boolean;
@@ -121,7 +123,7 @@ interface DocRowProps {
 }
 
 const DocRow: React.FC<DocRowProps> = ({
-  contextKey, label, value, status, urlValue,
+  contextKey, label, value, status, urlValue, fileOnly,
   editing, saving, uploading, saved,
   onStartEdit, onSave, onCancel, onUpload,
 }) => {
@@ -150,6 +152,18 @@ const DocRow: React.FC<DocRowProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               {status === 'na' ? (
                 <p className="text-[10px] text-zinc-600 font-bold italic">No aplica para este vehículo</p>
+              ) : fileOnly ? (
+                <>
+                  <p className="text-[10px] text-zinc-300 font-bold">
+                    {urlValue ? 'Documento adjunto' : 'Sin documento adjunto'}
+                  </p>
+                  {urlValue && (
+                    <a href={urlValue} target="_blank" rel="noopener noreferrer"
+                      className="text-[8px] font-black text-emerald-400 bg-emerald-900/20 border border-emerald-700/20 px-2 py-0.5 rounded-lg hover:bg-emerald-900/30 transition-all whitespace-nowrap">
+                      📎 Ver doc
+                    </a>
+                  )}
+                </>
               ) : (
                 <>
                   <p className="text-[10px] text-zinc-300 font-bold">
@@ -174,13 +188,19 @@ const DocRow: React.FC<DocRowProps> = ({
             {wasSaved && !isEditing && (
               <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">✓ Guardado</span>
             )}
-            {!isEditing && !wasSaved && status !== 'ok' && (
+            {!isEditing && !wasSaved && fileOnly && (
+              <button onClick={() => onStartEdit(contextKey)}
+                className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
+                {urlValue ? 'Reemplazar' : 'Adjuntar'}
+              </button>
+            )}
+            {!isEditing && !wasSaved && !fileOnly && status !== 'ok' && (
               <button onClick={() => onStartEdit(contextKey)}
                 className="text-xs font-black uppercase tracking-wide px-4 py-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 min-w-[88px]">
                 Actualizar
               </button>
             )}
-            {!isEditing && !wasSaved && status === 'ok' && (
+            {!isEditing && !wasSaved && !fileOnly && status === 'ok' && (
               <button onClick={() => onStartEdit(contextKey)}
                 className="text-[9px] font-black uppercase tracking-wide px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors border border-white/5 hover:border-white/10">
                 Editar
@@ -193,32 +213,34 @@ const DocRow: React.FC<DocRowProps> = ({
       {isEditing && status !== 'na' && (
         <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/8 bg-[#13161c]">
 
-          {/* Fecha */}
-          <div>
-            <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
-              Fecha de vencimiento
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={localDate}
-                onChange={e => setLocalDate(e.target.value)}
-                style={{ colorScheme: 'light' }}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
-              />
-              {!localDate && (
-                <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
-                  <span className="text-[13px] text-gray-400">dd / mm / aaaa</span>
-                </div>
-              )}
+          {/* Fecha de vencimiento — no se muestra para documentos sin fecha */}
+          {!fileOnly && (
+            <div>
+              <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+                Fecha de vencimiento
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={localDate}
+                  onChange={e => setLocalDate(e.target.value)}
+                  style={{ colorScheme: 'light' }}
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
+                />
+                {!localDate && (
+                  <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
+                    <span className="text-[13px] text-gray-400">dd / mm / aaaa</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Subir documento */}
           {hasUrlField && (
             <div className="space-y-1.5">
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
-                Foto o PDF del documento
+                {fileOnly ? 'Foto o PDF del Padrón' : 'Foto o PDF del documento'}
               </label>
               <input ref={fileRef} type="file" accept="image/*,.pdf,.heic,.heif"
                 className="hidden"
@@ -247,10 +269,10 @@ const DocRow: React.FC<DocRowProps> = ({
           {/* Botones */}
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => onSave(contextKey, localDate)}
-              disabled={saving || (!localDate && !urlValue)}
+              onClick={() => onSave(contextKey, fileOnly ? '' : localDate)}
+              disabled={saving || (fileOnly ? !urlValue : !localDate && !urlValue)}
               className="flex-1 py-3 rounded-lg text-[11px] font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
-              {saving ? 'Guardando...' : '✓ Guardar'}
+              {saving ? 'Guardando...' : fileOnly ? '✓ Listo' : '✓ Guardar'}
             </button>
             <button
               onClick={onCancel}
@@ -286,6 +308,7 @@ interface DocItem {
   value:      string;
   status:     DocStatus;
   urlValue?:  string;
+  fileOnly?:  boolean;
 }
 
 // Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
@@ -495,7 +518,11 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
       const value    = String((v as unknown as Record<string, unknown>)[fieldKey] ?? '');
       const urlKey   = DATE_TO_URL_KEY[fieldKey];
       const urlValue = urlKey ? String((v as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
-      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined };
+      // Para documentos sin fecha (fileOnly), el estado depende de si hay archivo adjunto
+      const status   = d.fileOnly
+        ? ((urlValue ? 'ok' : 'missing') as DocStatus)
+        : getDocStatus(value);
+      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly };
     });
     return { vehicle: v, docs };
   });

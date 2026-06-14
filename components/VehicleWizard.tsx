@@ -318,9 +318,10 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
   // ── Taxímetro helpers (per vehicle) ──
 
   const getTaxStatus = (v: VehicleEntry) => {
-    const val = (v.vencimientoControlTaximetro || '').toLowerCase();
+    const val = (v.vencimientoControlTaximetro || '').toLowerCase().trim();
     if (!val || val === 'sin información') return 'Sin Información';
     if (val === 'no aplica') return 'No Aplica';
+    // 'sujeto a control' o cualquier fecha real → tiene taxímetro
     return 'SUJETO';
   };
 
@@ -450,7 +451,9 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                   getTaxStatus={() => getTaxStatus(v)}
                   onTaxToggle={(e) => {
                     const val = e.target.value;
-                    setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoControlTaximetro: val === 'SUJETO' ? '' : val } : vv));
+                    // Al seleccionar SUJETO se guarda 'Sujeto a Control' como sentinel
+                    // (cadena vacía se confundiría con 'Sin Información')
+                    setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoControlTaximetro: val === 'SUJETO' ? 'Sujeto a Control' : val } : vv));
                   }}
                   isEditing={isEditing}
                   onUpload={(field, file) => handleVehicleUpload(idx, field, file)}

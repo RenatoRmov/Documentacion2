@@ -82,6 +82,7 @@ const safeDateOrStatus = (val: string | undefined): string | null => {
     if (!val || !val.trim()) return null;
     const lower = val.toLowerCase().trim();
     if (lower === 'no aplica') return 'No Aplica';
+    if (lower === 'sujeto a control') return 'Sujeto a Control';
     if (lower === 'sin información' || lower === 'sin informacion') return 'Sin Información';
     if (val.match(/^\d{4}-\d{2}-\d{2}$/)) return val;
     if (val.match(/^\d{2}-\d{2}-\d{4}$/)) return toISODate(val);
