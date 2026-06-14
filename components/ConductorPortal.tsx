@@ -133,12 +133,14 @@ const DocRow: React.FC<DocRowProps> = ({
   const fieldKey  = contextKey.slice(contextKey.indexOf(':') + 1);
   const hasUrlField = fieldKey in DATE_TO_URL_KEY;
 
-  // Estado local de la fecha — evita re-renders del padre mientras el conductor escribe
+  // localDate persiste entre re-renders causados por upload (cambio de urlValue).
+  // Solo se reinicializa cuando se ENTRA a modo edición (transición false→true).
   const [localDate, setLocalDate] = useState('');
+  const wasEditing = useRef(false);
   useEffect(() => {
-    if (isEditing) setLocalDate(toInputDate(value));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing]);
+    if (isEditing && !wasEditing.current) setLocalDate(toInputDate(value));
+    wasEditing.current = isEditing;
+  });
 
   return (
     <div className={`rounded-xl border ${meta.border} ${meta.bg} overflow-hidden`}>
@@ -186,7 +188,7 @@ const DocRow: React.FC<DocRowProps> = ({
 
           {/* Fecha */}
           <div>
-            <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+            <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
               Fecha de vencimiento
             </label>
             <div className="relative">
@@ -195,9 +197,8 @@ const DocRow: React.FC<DocRowProps> = ({
                 value={localDate}
                 onChange={e => setLocalDate(e.target.value)}
                 style={{ colorScheme: 'light' }}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 font-medium focus:outline-none focus:border-amber-400 transition-colors"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
               />
-              {/* Placeholder visible cuando no hay fecha seleccionada */}
               {!localDate && (
                 <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
                   <span className="text-sm text-gray-400">dd / mm / aaaa</span>
