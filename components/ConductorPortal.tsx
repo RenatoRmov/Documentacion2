@@ -197,11 +197,11 @@ const DocRow: React.FC<DocRowProps> = ({
                 value={localDate}
                 onChange={e => setLocalDate(e.target.value)}
                 style={{ colorScheme: 'light' }}
-                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-[13px] text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
               />
               {!localDate && (
                 <div className="absolute inset-0 flex items-center px-3 pointer-events-none">
-                  <span className="text-sm text-gray-400">dd / mm / aaaa</span>
+                  <span className="text-[13px] text-gray-400">dd / mm / aaaa</span>
                 </div>
               )}
             </div>
@@ -271,6 +271,84 @@ const InfoRow = ({ label, value }: { label: string; value?: string }) =>
       <p className="text-[10px] font-bold text-zinc-200">{value}</p>
     </div>
   ) : null;
+
+// Tipo compartido para las filas de documentos
+interface DocItem {
+  contextKey: string;
+  label:      string;
+  value:      string;
+  status:     DocStatus;
+  urlValue?:  string;
+}
+
+// Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
+interface RowHandlers {
+  editing:      string | null;
+  saving:       boolean;
+  saved:        Set<string>;
+  onStartEdit:  (key: string) => void;
+  onSave:       (key: string, date: string) => void;
+  onCancel:     () => void;
+  onUpload:     (key: string, file: File) => Promise<void>;
+}
+
+// ─── DocSection y GroupedDocs DEBEN estar fuera de ConductorPortal ───────────
+// Si se definen dentro del componente padre, React los trata como tipos nuevos
+// en cada render, desmontando y remontando los DocRow (con pérdida de estado).
+
+const DocSection: React.FC<{
+  title:     string;
+  color:     string;
+  items:     DocItem[];
+  uploading: string | null;
+  handlers:  RowHandlers;
+}> = ({ title, color, items, uploading, handlers }) => {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className={`text-[8px] font-black uppercase tracking-widest mb-3 ${color}`}>{title}</p>
+      <div className="space-y-2">
+        {items.map(d => (
+          <DocRow key={d.contextKey} {...d}
+            uploading={uploading === d.contextKey}
+            {...handlers} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const GroupedDocs: React.FC<{
+  docs:      DocItem[];
+  uploading: string | null;
+  handlers:  RowHandlers;
+}> = ({ docs, uploading, handlers }) => {
+  const expired = docs.filter(d => d.status === 'expired');
+  const urgent  = docs.filter(d => d.status === 'urgent');
+  const soon    = docs.filter(d => d.status === 'soon');
+  const ok      = docs.filter(d => d.status === 'ok');
+  const missing = docs.filter(d => d.status === 'missing');
+  return (
+    <div className="space-y-4">
+      <DocSection title="🔴 Vencidos"             color="text-red-400"    items={expired} uploading={uploading} handlers={handlers} />
+      <DocSection title="🟠 Urgente (< 7 días)"   color="text-orange-400" items={urgent}  uploading={uploading} handlers={handlers} />
+      <DocSection title="🟡 Por vencer"           color="text-amber-400"  items={soon}    uploading={uploading} handlers={handlers} />
+      <DocSection title="⚪ Sin fecha registrada" color="text-zinc-500"   items={missing} uploading={uploading} handlers={handlers} />
+      {ok.length > 0 && (
+        <div>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-3 text-emerald-600">✓ Al día ({ok.length})</p>
+          <div className="space-y-2">
+            {ok.map(d => (
+              <DocRow key={d.contextKey} {...d}
+                uploading={uploading === d.contextKey}
+                {...handlers} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -387,7 +465,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
 
   // ── Preparar datos ──
 
-  const rowProps = {
+  const handlers: RowHandlers = {
     editing, saving,
     saved, onStartEdit: startEdit,
     onSave: handleSave, onCancel: () => setEditing(null),
@@ -415,50 +493,6 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
 
   const totalAlerts = countAlerts(conductorDocs) + vehicleSections.reduce((sum, s) => sum + countAlerts(s.docs), 0);
   const companyName = contact?.companyName || 'Radiomóvil';
-
-  const DocSection = ({ title, color, items }: { title: string; color: string; items: typeof conductorDocs }) => {
-    if (items.length === 0) return null;
-    return (
-      <div>
-        <p className={`text-[8px] font-black uppercase tracking-widest mb-3 ${color}`}>{title}</p>
-        <div className="space-y-2">
-          {items.map(d => (
-            <DocRow key={d.contextKey} {...d}
-              uploading={uploading === d.contextKey}
-              {...rowProps} />
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const GroupedDocs = ({ docs }: { docs: typeof conductorDocs }) => {
-    const expired = docs.filter(d => d.status === 'expired');
-    const urgent  = docs.filter(d => d.status === 'urgent');
-    const soon    = docs.filter(d => d.status === 'soon');
-    const ok      = docs.filter(d => d.status === 'ok');
-    const missing = docs.filter(d => d.status === 'missing');
-    return (
-      <div className="space-y-4">
-        <DocSection title="🔴 Vencidos"              color="text-red-400"    items={expired} />
-        <DocSection title="🟠 Urgente (< 7 días)"    color="text-orange-400" items={urgent} />
-        <DocSection title="🟡 Por vencer"            color="text-amber-400"  items={soon} />
-        <DocSection title="⚪ Sin fecha registrada"  color="text-zinc-500"   items={missing} />
-        {ok.length > 0 && (
-          <div>
-            <p className="text-[8px] font-black uppercase tracking-widest mb-3 text-emerald-600">✓ Al día ({ok.length})</p>
-            <div className="space-y-2">
-              {ok.map(d => (
-                <DocRow key={d.contextKey} {...d}
-                  uploading={uploading === d.contextKey}
-                  {...rowProps} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -540,7 +574,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
         {conductorDocs.length > 0 && (
           <div className="bg-[#1B1F24] rounded-2xl border border-white/5 p-5">
             <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-4">Documentos Personales</p>
-            <GroupedDocs docs={conductorDocs} />
+            <GroupedDocs docs={conductorDocs} uploading={uploading} handlers={handlers} />
           </div>
         )}
 
@@ -560,7 +594,7 @@ const ConductorPortal: React.FC<{ token: string }> = ({ token }) => {
               </span>
             </div>
             <div className="p-5">
-              {docs.length > 0 ? <GroupedDocs docs={docs} /> : (
+              {docs.length > 0 ? <GroupedDocs docs={docs} uploading={uploading} handlers={handlers} /> : (
                 <p className="text-center text-[9px] text-zinc-600 uppercase tracking-widest py-4">Todos los documentos al día</p>
               )}
             </div>
