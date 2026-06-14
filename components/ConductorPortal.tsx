@@ -29,7 +29,8 @@ const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; 
     extraField: { key: 'municipalidadPermiso', label: 'Municipalidad que lo otorga' } },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
-  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos' },
+  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos',
+    extraField: { key: 'aseguradoraAsiento', label: 'Aseguradora' } },
   { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro', hasTaxToggle: true },
   { docKey: 'vencimientoPadron',             label: 'Padrón', fileOnly: true },
 ];
