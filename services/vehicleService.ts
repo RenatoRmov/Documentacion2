@@ -230,10 +230,30 @@ export const vehicleService = {
     },
 
     async deleteVehicle(patente: string): Promise<void> {
+        // Obtener el conductor_rut antes de eliminar para verificar huérfanos después
+        const { data: vehicle } = await supabase
+            .from('vehicles')
+            .select('conductor_rut')
+            .eq('patente', patente)
+            .single();
+
+        const conductorRut = vehicle?.conductor_rut as string | null;
+
         const { error } = await supabase
             .from('vehicles')
             .delete()
             .eq('patente', patente);
         if (error) throw error;
+
+        // Si era el último vehículo de este conductor, eliminar también el conductor
+        if (conductorRut) {
+            const { count } = await supabase
+                .from('vehicles')
+                .select('*', { count: 'exact', head: true })
+                .eq('conductor_rut', conductorRut);
+            if (count === 0) {
+                await supabase.from('conductores').delete().eq('rut', conductorRut);
+            }
+        }
     },
 };
