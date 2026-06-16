@@ -18,6 +18,29 @@ const DATE_TO_URL_KEY: Record<string, string> = {
   vencimientoControlTaximetro:   'urlControlTaximetro',
 };
 
+// Mapeo campo → etiqueta legible para el log de actividad
+const FIELD_LABEL_MAP: Record<string, string> = {
+  vigenciaCarnetHasta:           'Carnet de Identidad',
+  vigenciaLicenciaHasta:         'Licencia de Conducir',
+  municipalidadLicencia:         'Municipalidad (Licencia)',
+  vencimientoPermisoCirculacion: 'Permiso de Circulación',
+  municipalidadPermiso:          'Municipalidad (Permiso de Circulación)',
+  vencimientoRevisionTecnica:    'Revisión Técnica',
+  vencimientoSOAP:               'SOAP',
+  vencimientoSeguroAsiento:      'Seguro de Asientos',
+  aseguradoraAsiento:            'Aseguradora (Seguro de Asientos)',
+  vencimientoControlTaximetro:   'Control de Taxímetro',
+  vencimientoPadron:             'Padrón',
+  urlCarnet:                     'Carnet de Identidad (archivo)',
+  urlLicencia:                   'Licencia de Conducir (archivo)',
+  urlPermisoCirculacion:         'Permiso de Circulación (archivo)',
+  urlRevisionTecnica:            'Revisión Técnica (archivo)',
+  urlSOAP:                       'SOAP (archivo)',
+  urlPadron:                     'Padrón (archivo)',
+  urlSeguroAsiento:              'Seguro de Asientos (archivo)',
+  urlControlTaximetro:           'Control de Taxímetro (archivo)',
+};
+
 const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; extraField?: { key: keyof Conductor; label: string; placeholder?: string } }[] = [
   { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad' },
   { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir',
@@ -501,6 +524,18 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
       setEditing(null);
       setSaved(prev => new Set([...prev, contextKey]));
       setTimeout(() => setSaved(prev => { const n = new Set(prev); n.delete(contextKey); return n; }), 3000);
+      // Registro de actividad para el resumen diario al encargado (fire-and-forget)
+      fetch('/api/log-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conductor_rut:    conductor.rut,
+          conductor_nombre: conductor.nombre,
+          movil:            conductor.numeroMovil ?? '',
+          patente:          ctx === 'conductor' ? null : ctx,
+          field_label:      FIELD_LABEL_MAP[fieldKey] ?? fieldKey,
+        }),
+      }).catch(() => {});
     } catch {
       alert('Error al guardar. Intenta de nuevo.');
     } finally {
@@ -530,6 +565,18 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
         await vehicleService.updateVehicle(ctx, { [urlKey]: url } as Partial<Vehicle>);
         setVehicles(prev => prev.map(v => v.patente === ctx ? { ...v, [urlKey]: url } : v));
       }
+      // Registro de actividad (fire-and-forget)
+      fetch('/api/log-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conductor_rut:    conductor.rut,
+          conductor_nombre: conductor.nombre,
+          movil:            conductor.numeroMovil ?? '',
+          patente:          ctx === 'conductor' ? null : ctx,
+          field_label:      FIELD_LABEL_MAP[urlKey] ?? urlKey,
+        }),
+      }).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       alert(`Error al subir el archivo:\n${msg}`);

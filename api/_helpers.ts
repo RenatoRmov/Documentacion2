@@ -158,7 +158,10 @@ export function buildPlainTextForVehicle(
   contact: ContactInfo,
 ): string {
   const company   = contact.companyName || 'RadioMovil';
-  const portalUrl = g.conductorToken ? `${contact.appUrl}/portal?token=${g.conductorToken}` : null;
+  // Prefer legacy token URL for backward compat; fallback to RUT login portal
+  const portalUrl = g.conductorToken
+    ? `${contact.appUrl}/portal?token=${g.conductorToken}`
+    : contact.appUrl ? `${contact.appUrl}/portal` : null;
 
   const lines: string[] = [];
 
@@ -186,7 +189,8 @@ export function buildPlainTextForVehicle(
   lines.push('Por favor, gestiona la renovación o actualización de estos documentos a la brevedad.\n');
 
   if (portalUrl) {
-    lines.push(`Puedes actualizar tus documentos directamente desde tu celular:\n${portalUrl}\n`);
+    const loginNote = !g.conductorToken ? ' (inicia sesión con tu RUT)' : '';
+    lines.push(`Puedes actualizar tus documentos directamente desde tu celular${loginNote}:\n${portalUrl}\n`);
   }
 
   if (contact.contactEmail || contact.contactWhatsApp) {
@@ -212,7 +216,10 @@ export function buildEmailHtmlForVehicle(
   contact: ContactInfo,
 ): string {
   const company   = contact.companyName || 'RadioMovil';
-  const portalUrl = g.conductorToken ? `${contact.appUrl}/portal?token=${g.conductorToken}` : null;
+  const portalUrl = g.conductorToken
+    ? `${contact.appUrl}/portal?token=${g.conductorToken}`
+    : contact.appUrl ? `${contact.appUrl}/portal` : null;
+  const loginNote = !g.conductorToken && portalUrl ? ' (inicia sesión con tu RUT)' : '';
 
   const testNote = test
     ? `<p style="margin:0 0 20px;padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;font-size:13px;color:#92400e;">
@@ -242,7 +249,7 @@ export function buildEmailHtmlForVehicle(
 
   const portalBlock = portalUrl
     ? `<p style="margin:20px 0 8px;font-size:13px;color:#111;">
-        Puedes actualizar tus documentos directamente desde tu celular:
+        Puedes actualizar tus documentos directamente desde tu celular${loginNote}:
       </p>
       <p style="margin:0 0 20px;">
         <a href="${portalUrl}" style="display:inline-block;background:#1a56db;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold;padding:10px 22px;border-radius:6px;">
@@ -316,6 +323,37 @@ export function buildEmailHtmlForVehicle(
 </table>
 </body>
 </html>`;
+}
+
+// ─── Plain-text admin summary ────────────────────────────────────────────────
+
+export function buildAdminEmailPlainText(
+  groups: VehicleAlertGroup[],
+  test: boolean,
+  contact: ContactInfo,
+): string {
+  const company   = contact.companyName || 'RadioMovil';
+  const totalExp  = groups.reduce((s, g) => s + g.expired.length,  0);
+  const totalUpco = groups.reduce((s, g) => s + g.upcoming.length, 0);
+  const totalMiss = groups.reduce((s, g) => s + g.missing.length,  0);
+
+  const lines: string[] = [];
+  if (test) lines.push('[ MENSAJE DE PRUEBA ]\n');
+  lines.push(`${company} — Resumen de alertas`);
+  lines.push(`${groups.length} vehículo(s) — Vencidos: ${totalExp} | Por vencer: ${totalUpco} | Sin registro: ${totalMiss}\n`);
+
+  for (const g of groups) {
+    lines.push(`Móvil ${g.vehicleId} — Patente ${g.patente} (${g.conductor})`);
+    for (const a of g.expired)  lines.push(`  VENCIDO: ${a.label} — venció ${a.dateStr} (hace ${Math.abs(a.days)} días)`);
+    for (const a of g.upcoming) lines.push(`  Por vencer: ${a.label} — vence ${a.dateStr} (en ${a.days} días)`);
+    for (const l of g.missing)  lines.push(`  Sin registro: ${l}`);
+    lines.push('');
+  }
+
+  if (contact.appUrl) lines.push(`Sistema: ${contact.appUrl}\n`);
+  lines.push(company);
+
+  return lines.join('\n');
 }
 
 // ─── Admin summary email ──────────────────────────────────────────────────────
@@ -437,18 +475,18 @@ export function buildSubjectForVehicle(
   contact: ContactInfo,
 ): string {
   const company = contact.companyName || 'RadioMovil';
-  if (test) return `[PRUEBA] Documentos Móvil ${g.vehicleId} — ${company}`;
-  // Personal-sounding subject → less likely to be classified as Promotions by Gmail
+  if (test) return `[PRUEBA] ${company} — Documentos Móvil ${g.vehicleId}`;
+  // Subjects with conductor name feel personal → better inbox placement
   if (g.expired.length > 0) {
-    const label = g.expired[0].label;
+    const a = g.expired[0];
     const extra = g.expired.length > 1 ? ` y ${g.expired.length - 1} más` : '';
-    return `Aviso importante: ${label}${extra} vencido — Móvil ${g.vehicleId}`;
+    return `${g.conductor}: ${a.label}${extra} venció el ${a.dateStr}`;
   }
   if (g.upcoming.length > 0) {
-    const soonest = g.upcoming[0];
-    return `Por vencer en ${soonest.days} días: ${soonest.label} — Móvil ${g.vehicleId}`;
+    const a = g.upcoming[0];
+    return `${g.conductor}: ${a.label} vence el ${a.dateStr} (${a.days} días)`;
   }
-  return `Documentos sin registrar — Móvil ${g.vehicleId}, ${g.conductor}`;
+  return `${g.conductor}: documentos pendientes de registrar — ${company}`;
 }
 
 // ─── Unified email sender (Gmail SMTP first, Resend fallback) ─────────────────
@@ -493,15 +531,10 @@ async function sendViaTransport(
   body: { text?: string; html?: string },
 ): Promise<void> {
   const info = await transport.sendMail({
-    from:    `"${fromName}" <${gmailUser}>`,
+    from: `"${fromName}" <${gmailUser}>`,
     to, subject,
-    text:    body.text,
-    html:    body.html,
-    headers: {
-      'Importance': 'high',
-      'X-Priority': '1',
-      'Precedence': 'personal',
-    },
+    text: body.text,
+    html: body.html,
   });
   if (info.rejected?.length) {
     throw new Error(`Destinatario rechazado: ${info.rejected.join(', ')}`);
@@ -587,18 +620,41 @@ export async function sendAllEmails(
   if (adminEmail && groups.length > 0) {
     const totalExp  = groups.reduce((s, g) => s + g.expired.length,  0);
     const totalUpco = groups.reduce((s, g) => s + g.upcoming.length, 0);
+    const adminSubject = test
+      ? `[PRUEBA] ${fromName} — resumen de alertas`
+      : totalExp > 0
+      ? `${fromName}: ${groups.length} vehículo${groups.length!==1?'s':''} con documentos vencidos o por vencer`
+      : `${fromName}: ${groups.length} vehículo${groups.length!==1?'s':''} con documentos por gestionar`;
     await doSend(
       adminEmail,
-      test
-        ? `[PRUEBA] Resumen Alertas — ${fromName}`
-        : `🚨 ${fromName} | ${groups.length} vehículo(s) | VENCIDOS:${totalExp} | POR VENCER:${totalUpco}`,
-      { html: buildAdminEmailHtml(groups, test, contact) },
+      adminSubject,
+      {
+        text: buildAdminEmailPlainText(groups, test, contact),
+        html: buildAdminEmailHtml(groups, test, contact),
+      },
       'Admin CC',
     );
   }
 
   transport?.close();
   return { sent, skipped, errors };
+}
+
+// Sends a single email — used by conductor-digest and fleet-report crons
+export async function sendSingleEmail(
+  to: string,
+  subject: string,
+  body: { text?: string; html?: string },
+  fromName: string,
+): Promise<void> {
+  const gmailUser = process.env.GMAIL_USER?.trim() ?? null;
+  const transport = await createTransport();
+  if (transport && gmailUser) {
+    await sendViaTransport(transport, gmailUser, fromName, to, subject, body);
+    transport.close();
+  } else {
+    await sendViaResend(fromName, to, subject, body);
+  }
 }
 
 export async function sendWhatsApp(

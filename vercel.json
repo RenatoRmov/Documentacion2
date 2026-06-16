@@ -4,9 +4,8 @@
     { "source": "/portal", "destination": "/index.html" }
   ],
   "crons": [
-    {
-      "path": "/api/notify-cron",
-      "schedule": "0 11 * * *"
-    }
+    { "path": "/api/notify-cron",       "schedule": "0 11 * * *"   },
+    { "path": "/api/conductor-digest",  "schedule": "0 23 * * *"   },
+    { "path": "/api/fleet-report",      "schedule": "0 13 * * 1,4" }
   ]
 }
