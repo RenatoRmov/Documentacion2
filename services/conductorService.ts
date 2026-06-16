@@ -66,6 +66,7 @@ export const conductorService = {
     if (updates.email       !== undefined) dbData.email        = updates.email;
     if (updates.urlCarnet   !== undefined) dbData.url_carnet   = updates.urlCarnet   || null;
     if (updates.urlLicencia !== undefined) dbData.url_licencia = updates.urlLicencia || null;
-    await supabase.from('conductores').update(dbData).eq('rut', rut);
+    const { error } = await supabase.from('conductores').update(dbData).eq('rut', rut);
+    if (error) throw error;
   },
 };

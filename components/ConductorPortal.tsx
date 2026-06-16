@@ -511,20 +511,41 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
       const colonIdx = contextKey.indexOf(':');
       const ctx      = contextKey.slice(0, colonIdx);
       const fieldKey = contextKey.slice(colonIdx + 1);
-      const iso      = dateVal;
+
+      // Para documentos fileOnly (Padrón), dateVal es '' — no actualizar el campo fecha
+      // para no borrar fechas ingresadas desde el panel de admin
+      const hasDateUpdate = dateVal !== '';
+      const hasExtraUpdate = extra && Object.keys(extra).length > 0;
+
+      if (!hasDateUpdate && !hasExtraUpdate) {
+        // Nada que guardar en DB (solo se cerró el panel de upload)
+        setEditing(null);
+        return;
+      }
 
       if (ctx === 'conductor') {
-        await conductorService.updateConductor(conductor.rut, { [fieldKey]: iso, ...extra } as Partial<Conductor>);
-        const displayVal = fromISODate(iso) || iso;
-        setConductor(prev => prev ? { ...prev, [fieldKey]: displayVal, ...extra } : null);
+        const updates: Partial<Conductor> = {};
+        if (hasDateUpdate) (updates as Record<string, string>)[fieldKey] = dateVal;
+        if (extra) Object.assign(updates, extra);
+        await conductorService.updateConductor(conductor.rut, updates);
+        const displayVal = hasDateUpdate ? (fromISODate(dateVal) || dateVal) : undefined;
+        setConductor(prev => {
+          if (!prev) return null;
+          const next: Conductor = { ...prev, ...extra };
+          if (displayVal !== undefined) (next as Record<string, string>)[fieldKey] = displayVal;
+          return next;
+        });
       } else {
-        const updated = await vehicleService.updateVehicle(ctx, { [fieldKey]: iso, ...extra } as Partial<Vehicle>);
+        const updates: Partial<Vehicle> = {};
+        if (hasDateUpdate) (updates as Record<string, string>)[fieldKey] = dateVal;
+        if (extra) Object.assign(updates, extra);
+        const updated = await vehicleService.updateVehicle(ctx, updates);
         setVehicles(prev => prev.map(v => v.patente === ctx ? updated : v));
       }
       setEditing(null);
       setSaved(prev => new Set([...prev, contextKey]));
       setTimeout(() => setSaved(prev => { const n = new Set(prev); n.delete(contextKey); return n; }), 3000);
-      // Registro de actividad para el resumen diario al encargado (fire-and-forget)
+      // Registro de actividad (fire-and-forget)
       fetch('/api/log-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -536,8 +557,8 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
           field_label:      FIELD_LABEL_MAP[fieldKey] ?? fieldKey,
         }),
       }).catch(() => {});
-    } catch {
-      alert('Error al guardar. Intenta de nuevo.');
+    } catch (err: unknown) {
+      alert(`Error al guardar: ${err instanceof Error ? err.message : 'Intenta de nuevo.'}`);
     } finally {
       setSaving(false);
     }
@@ -551,12 +572,18 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
     const urlKey   = DATE_TO_URL_KEY[fieldKey];
     if (!urlKey) return;
 
+    // URL actual del archivo que va a ser reemplazado (para eliminarlo del storage después)
+    const row = ctx === 'conductor'
+      ? (conductor as unknown as Record<string, unknown>)
+      : (vehicles.find(v => v.patente === ctx) as unknown as Record<string, unknown> | undefined);
+    const oldUrl = row ? String(row[urlKey] ?? '') : '';
+
     setUploading(contextKey);
     try {
       const storagePath = ctx === 'conductor'
-        ? `conductores/${conductor.rut.replace(/\./g, '')}/${urlKey}`
+        ? `conductores/${conductor.rut.replace(/[^a-zA-Z0-9]/g, '')}/${urlKey}`
         : `vehicles/${ctx}/${urlKey}`;
-      const url = await uploadDoc(storagePath, file);
+      const url = await uploadDoc(storagePath, file, oldUrl || undefined);
 
       if (ctx === 'conductor') {
         await conductorService.updateConductor(conductor.rut, { [urlKey]: url } as Partial<Conductor>);
@@ -565,6 +592,9 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
         await vehicleService.updateVehicle(ctx, { [urlKey]: url } as Partial<Vehicle>);
         setVehicles(prev => prev.map(v => v.patente === ctx ? { ...v, [urlKey]: url } : v));
       }
+      // Feedback visual de éxito (igual que handleSave)
+      setSaved(prev => new Set([...prev, contextKey]));
+      setTimeout(() => setSaved(prev => { const n = new Set(prev); n.delete(contextKey); return n; }), 3000);
       // Registro de actividad (fire-and-forget)
       fetch('/api/log-activity', {
         method: 'POST',
@@ -578,8 +608,7 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
         }),
       }).catch(() => {});
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      alert(`Error al subir el archivo:\n${msg}`);
+      alert(`Error al subir el archivo: ${err instanceof Error ? err.message : 'Intenta de nuevo.'}`);
     } finally {
       setUploading(null);
     }
