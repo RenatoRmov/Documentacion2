@@ -476,17 +476,16 @@ export function buildSubjectForVehicle(
 ): string {
   const company = contact.companyName || 'RadioMovil';
   if (test) return `[PRUEBA] ${company} — Documentos Móvil ${g.vehicleId}`;
-  // Subjects with conductor name feel personal → better inbox placement
   if (g.expired.length > 0) {
     const a = g.expired[0];
     const extra = g.expired.length > 1 ? ` y ${g.expired.length - 1} más` : '';
-    return `${g.conductor}: ${a.label}${extra} venció el ${a.dateStr}`;
+    return `Móvil ${g.vehicleId} — ${a.label}${extra}: vencimiento el ${a.dateStr}`;
   }
   if (g.upcoming.length > 0) {
     const a = g.upcoming[0];
-    return `${g.conductor}: ${a.label} vence el ${a.dateStr} (${a.days} días)`;
+    return `Móvil ${g.vehicleId} — ${a.label} vence el ${a.dateStr} (${a.days} días)`;
   }
-  return `${g.conductor}: documentos pendientes de registrar — ${company}`;
+  return `Móvil ${g.vehicleId} — documentos pendientes de registrar`;
 }
 
 // ─── Unified email sender (Gmail SMTP first, Resend fallback) ─────────────────
