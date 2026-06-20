@@ -61,6 +61,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const waNumber   = process.env.CRON_WA_NUMBER   ?? '';
   const waApiKey   = process.env.CRON_WA_APIKEY   ?? '';
 
+  // ?preview=email → redirige todos los emails de conductores a esa dirección (prueba segura)
+  const previewEmail = typeof req.query.preview === 'string' ? req.query.preview.trim() : null;
+
   // Admin summary only on Mondays — conductor reminders run Mon/Wed/Fri
   const isMonday = new Date().getUTCDay() === 1;
 
@@ -70,7 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let emailsSent = 0, emailsSkipped = 0, waSent = false;
 
   if (hasEmail) {
-    const result = await sendAllEmails(groups, isMonday ? adminEmail || null : null, false, contact);
+    const groupsToSend = previewEmail
+      ? groups.map(g => ({ ...g, email: previewEmail }))
+      : groups;
+    const result = await sendAllEmails(groupsToSend, previewEmail ? null : (isMonday ? adminEmail || null : null), false, contact);
     emailsSent    += result.sent;
     emailsSkipped += result.skipped;
     errors.push(...result.errors);
