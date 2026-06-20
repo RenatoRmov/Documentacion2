@@ -19,9 +19,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!supabaseUrl || !supabaseKey) return res.status(500).json({ error: 'Supabase no configurado' });
 
   const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data: fleet, error } = await supabase.from('vehicles').select('*').eq('status_operativo', 'Activo');
+  const { data: fleet, error } = await supabase
+    .from('vehicles')
+    .select('*, conductores(*)')
+    .eq('status_operativo', 'Activo');
   if (error)   return res.status(500).json({ error: `Supabase: ${error.message}` });
   if (!fleet?.length) return res.status(200).json({ message: 'Sin vehículos activos' });
+
+  // Flatten conductor fields into each vehicle row (mirrors mapVehicleFromDB in vehicleService)
+  const fleetFlat = fleet.map(v => {
+    const c = (v.conductores as Record<string, unknown> | null) ?? {};
+    return {
+      ...v,
+      numero_movil:           c.numero_movil          ?? '',
+      nombre_conductor:       c.nombre                ?? '',
+      email:                  c.email                 ?? (v as Record<string, unknown>).email ?? '',
+      celular:                c.celular               ?? '',
+      conductor_token:        c.conductor_token       ?? null,
+      vigencia_carnet_hasta:  c.vigencia_carnet_hasta  ?? '',
+      vigencia_licencia_hasta: c.vigencia_licencia_hasta ?? '',
+    };
+  });
 
   const contact: ContactInfo = {
     companyName:     process.env.CRON_COMPANY_NAME     ?? 'RadioMovil',
@@ -50,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   const groups = groupAlertsByVehicle(
-    fleet as Record<string, unknown>[],
+    fleetFlat as Record<string, unknown>[],
     priorityDocs,
     daysInAdvance,
     includeMissing,
