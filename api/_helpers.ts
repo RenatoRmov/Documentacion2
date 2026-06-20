@@ -137,7 +137,7 @@ export function groupAlertsByVehicle(
     if (expired.length === 0 && upcoming.length === 0 && missing.length === 0) continue;
 
     groups.push({
-      vehicleId:      (v.id ?? v.numero_movil ?? '') as string,
+      vehicleId:      (v.numero_movil ?? v.id ?? '') as string,
       patente:        (v.patente ?? '') as string,
       conductor:      (v.nombreConductor ?? v.nombre_conductor ?? 'Sin nombre') as string,
       rutConductor:   (v.rutConductor ?? v.rut_conductor ?? '') as string,
