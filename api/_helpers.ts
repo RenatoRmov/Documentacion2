@@ -479,22 +479,10 @@ export function buildSubjectForVehicle(
   test: boolean,
   contact: ContactInfo,
 ): string {
-  const company  = contact.companyName || 'RadioMovil';
-  const vehicle  = `Móvil ${g.vehicleId} (${g.patente})`;
-  if (test) return `[PRUEBA] ${company} — Documentos ${vehicle}`;
-  if (g.expired.length > 0) {
-    const exp  = g.expired.length;
-    const upco = g.upcoming.length;
-    if (exp === 1 && upco === 0) return `${vehicle} — ${g.expired[0].label} vencido`;
-    if (upco > 0) return `${vehicle} — ${exp} vencido${exp !== 1 ? 's' : ''}, ${upco} por vencer`;
-    return `${vehicle} — ${exp} documentos vencidos`;
-  }
-  if (g.upcoming.length > 0) {
-    const a = g.upcoming[0];
-    if (g.upcoming.length === 1) return `${vehicle} — ${a.label} vence en ${a.days} días`;
-    return `${vehicle} — ${g.upcoming.length} documentos por vencer`;
-  }
-  return `${vehicle} — documentos pendientes de registrar`;
+  const company = contact.companyName || 'RadioMovil';
+  const vehicle = `Móvil ${g.vehicleId} (${g.patente})`;
+  if (test) return `[PRUEBA] ${company} — Documentos ${vehicle} por gestionar`;
+  return `${company} — Documentos ${vehicle} por gestionar`;
 }
 
 // ─── Unified email sender (Gmail SMTP first, Resend fallback) ─────────────────
