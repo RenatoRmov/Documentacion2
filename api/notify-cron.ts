@@ -29,15 +29,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Flatten conductor fields into each vehicle row (mirrors mapVehicleFromDB in vehicleService)
   const fleetFlat = fleet.map(v => {
     const c = (v.conductores as Record<string, unknown> | null) ?? {};
+    const vv = v as Record<string, unknown>;
     return {
       ...v,
-      numero_movil:           c.numero_movil          ?? '',
-      nombre_conductor:       c.nombre                ?? '',
-      email:                  c.email                 ?? (v as Record<string, unknown>).email ?? '',
-      celular:                c.celular               ?? '',
-      conductor_token:        c.conductor_token       ?? null,
-      vigencia_carnet_hasta:  c.vigencia_carnet_hasta  ?? '',
+      numero_movil:            c.numero_movil           ?? '',
+      nombre_conductor:        c.nombre                 ?? '',
+      email:                   c.email                  ?? vv.email ?? '',
+      celular:                 c.celular                ?? '',
+      conductor_token:         c.conductor_token        ?? null,
+      vigencia_carnet_hasta:   c.vigencia_carnet_hasta  ?? '',
       vigencia_licencia_hasta: c.vigencia_licencia_hasta ?? '',
+      // Padrón: presente si tiene URL del documento o una fecha registrada
+      vencimiento_padron: (vv.url_padron || vv.vencimiento_padron) ? 'OK' : '',
     };
   });
 
