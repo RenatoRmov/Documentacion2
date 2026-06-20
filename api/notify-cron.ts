@@ -61,13 +61,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const waNumber   = process.env.CRON_WA_NUMBER   ?? '';
   const waApiKey   = process.env.CRON_WA_APIKEY   ?? '';
 
+  // Admin summary only on Mondays — conductor reminders run Mon/Wed/Fri
+  const isMonday = new Date().getUTCDay() === 1;
+
   const hasEmail = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) || !!process.env.RESEND_API_KEY;
 
   const errors: string[] = [];
   let emailsSent = 0, emailsSkipped = 0, waSent = false;
 
   if (hasEmail) {
-    const result = await sendAllEmails(groups, adminEmail || null, false, contact);
+    const result = await sendAllEmails(groups, isMonday ? adminEmail || null : null, false, contact);
     emailsSent    += result.sent;
     emailsSkipped += result.skipped;
     errors.push(...result.errors);
