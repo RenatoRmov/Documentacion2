@@ -82,11 +82,13 @@ function toDisplayDate(dateStr: string): string {
 }
 
 // Works with both camelCase (frontend Vehicle) and snake_case (Supabase raw row)
+// presenceOnlyDocs: docs that only need to exist (no expiry check) — e.g. Padrón
 export function groupAlertsByVehicle(
   fleet: Record<string, unknown>[],
   priorityDocs: string[],
   daysInAdvance: number[],
   includeMissing = true,
+  presenceOnlyDocs: Set<string> = new Set(['vencimientoPadron']),
 ): VehicleAlertGroup[] {
   if (!priorityDocs.length) return [];
   const maxDays = daysInAdvance.length ? Math.max(...daysInAdvance) : 30;
@@ -113,6 +115,9 @@ export function groupAlertsByVehicle(
         if (includeMissing) missing.push(label);
         continue;
       }
+
+      // Presence-only docs (e.g. Padrón): having any value means OK, no expiry check
+      if (presenceOnlyDocs.has(key)) continue;
 
       const days = getDaysUntil(rawVal);
       if (days === null) {

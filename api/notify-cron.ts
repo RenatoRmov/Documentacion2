@@ -34,8 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const priorityDocs = (process.env.CRON_PRIORITY_DOCS ?? [
     'vencimientoPermisoCirculacion', 'vencimientoRevisionTecnica',
-    'vencimientoSOAP', 'vencimientoPadron',
-    'vencimientoSeguroAccidentes', 'vencimientoSeguroAsiento',
+    'vencimientoPadron', 'vencimientoSOAP',
+    'vencimientoSeguroAsiento', 'vencimientoControlTaximetro',
+    'vigenciaLicenciaHasta', 'vigenciaCarnetHasta',
   ].join(',')).split(',').map(s => s.trim()).filter(Boolean);
 
   const daysInAdvance = (process.env.CRON_DAYS_ADVANCE ?? '15,30')
@@ -43,11 +44,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const includeMissing = process.env.CRON_INCLUDE_MISSING !== 'false';
 
+  const presenceOnlyDocs = new Set<string>(
+    (process.env.CRON_PRESENCE_ONLY_DOCS ?? 'vencimientoPadron')
+      .split(',').map(s => s.trim()).filter(Boolean),
+  );
+
   const groups = groupAlertsByVehicle(
     fleet as Record<string, unknown>[],
     priorityDocs,
     daysInAdvance,
     includeMissing,
+    presenceOnlyDocs,
   );
 
   const adminEmail = process.env.CRON_NOTIFY_EMAIL ?? '';
