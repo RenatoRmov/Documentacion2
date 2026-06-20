@@ -202,7 +202,7 @@ export function buildPlainTextForVehicle(
     const parts: string[] = [];
     if (contact.contactEmail)    parts.push(`Correo: ${contact.contactEmail}`);
     if (contact.contactWhatsApp) parts.push(`WhatsApp: ${contact.contactWhatsApp}`);
-    lines.push(`En caso de problemas, contáctame:\n${parts.join('  |  ')}\n`);
+    lines.push(`Ante cualquier consulta o inconveniente, favor escribir a ${parts.join('  |  ')}\n`);
   }
 
   lines.push('Saludos,');
@@ -268,8 +268,8 @@ export function buildEmailHtmlForVehicle(
 
   const contactLine = (contact.contactEmail || contact.contactWhatsApp)
     ? `<p style="margin:0 0 20px;font-size:13px;color:#374151;">
-        En caso de problemas, contáctame:
-        ${contact.contactEmail ? `correo <a href="mailto:${contact.contactEmail}" style="color:#1a56db;">${contact.contactEmail}</a>` : ''}
+        Ante cualquier consulta o inconveniente, favor escribir a
+        ${contact.contactEmail ? `<a href="mailto:${contact.contactEmail}" style="color:#1a56db;">${contact.contactEmail}</a>` : ''}
         ${contact.contactWhatsApp ? `· WhatsApp ${contact.contactWhatsApp}` : ''}
       </p>`
     : '';
