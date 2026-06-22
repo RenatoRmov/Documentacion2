@@ -154,24 +154,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseKey);
   const { data: fleet, error } = await supabase
     .from('vehicles')
-    .select('*')
+    .select('*, conductores(*)')
     .eq('status_operativo', 'Activo');
 
   if (error) return res.status(500).json({ error: error.message });
   if (!fleet?.length) return res.status(200).json({ message: 'Sin vehículos activos' });
+
+  const fleetFlat = fleet.map(v => {
+    const c = (v.conductores as Record<string, unknown> | null) ?? {};
+    return {
+      ...v,
+      numero_movil:            c.numero_movil            ?? '',
+      nombre_conductor:        c.nombre                  ?? '',
+      vigencia_carnet_hasta:   c.vigencia_carnet_hasta   ?? '',
+      vigencia_licencia_hasta: c.vigencia_licencia_hasta ?? '',
+    };
+  });
 
   const company    = process.env.CRON_COMPANY_NAME ?? 'RadioMovil';
   const adminEmail = process.env.CRON_NOTIFY_EMAIL;
   const appUrl     = (process.env.CRON_APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')).replace(/\/$/, '');
 
   const alertGroups = groupAlertsByVehicle(
-    fleet as Record<string, unknown>[],
+    fleetFlat as Record<string, unknown>[],
     PRIORITY_DOCS,
     [15, 30],
     true,
   );
 
-  const okCount = fleet.length - alertGroups.length;
+  const okCount = fleetFlat.length - alertGroups.length;
 
   if (!adminEmail) {
     return res.status(200).json({ message: 'No admin email configured', fleet: fleet.length });
