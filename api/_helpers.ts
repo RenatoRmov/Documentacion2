@@ -594,21 +594,57 @@ export async function sendAllEmails(
   };
 
   // ── Conductor emails (live mode only) ──────────────────────────────────────
-  // Send as plain text (primary) + HTML (fallback). Plain text ensures Gmail
-  // delivers to Primary inbox instead of Promotions/Spam.
   if (!test) {
-    for (const g of groups) {
-      if (!g.email) { skipped++; continue; }
-      const ok = await doSend(
-        g.email,
-        buildSubjectForVehicle(g, test, contact),
-        {
-          text: buildPlainTextForVehicle(g, test, contact),
-          html: buildEmailHtmlForVehicle(g, test, contact),
-        },
-        `Móvil ${g.vehicleId} (${g.email})`,
-      );
-      if (ok) sent++;
+    const toSend = groups
+      .filter(g => !!g.email)
+      .map(g => ({
+        tag:     `Móvil ${g.vehicleId}`,
+        to:      g.email as string,
+        subject: buildSubjectForVehicle(g, test, contact),
+        text:    buildPlainTextForVehicle(g, test, contact),
+        html:    buildEmailHtmlForVehicle(g, test, contact),
+      }));
+
+    skipped += groups.length - toSend.length;
+
+    if (toSend.length > 0) {
+      if (transport && gmailUser) {
+        // Gmail SMTP: sequential (no batch API available)
+        for (const e of toSend) {
+          const ok = await doSend(e.to, e.subject, { text: e.text, html: e.html }, e.tag);
+          if (ok) sent++;
+        }
+      } else {
+        // Resend: batch API — una sola llamada HTTP para todos los emails, evita rate limits
+        const resendKey = process.env.RESEND_API_KEY?.trim();
+        if (!resendKey) {
+          errors.push('Sin RESEND_API_KEY configurada.');
+        } else {
+          const fromCustom = process.env.RESEND_FROM_EMAIL?.trim();
+          const fromAddr   = fromCustom
+            ? `${fromName} <${fromCustom}>`
+            : `${fromName} <onboarding@resend.dev>`;
+          const { Resend } = await import('resend');
+          const resend = new Resend(resendKey);
+
+          // Resend admite máximo 100 por llamada — dividir si hay más
+          for (let i = 0; i < toSend.length; i += 100) {
+            const chunk = toSend.slice(i, i + 100);
+            try {
+              const { data, error: batchErr } = await resend.batch.send(
+                chunk.map(e => ({ from: fromAddr, to: e.to, subject: e.subject, text: e.text, html: e.html })),
+              );
+              if (batchErr) {
+                errors.push(`Batch: ${batchErr.message}`);
+              } else {
+                sent += (data as unknown[])?.length ?? chunk.length;
+              }
+            } catch (e: unknown) {
+              errors.push(`Batch: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        }
+      }
     }
   }
 
