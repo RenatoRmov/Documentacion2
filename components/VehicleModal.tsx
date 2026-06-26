@@ -170,6 +170,27 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
     }));
   };
 
+  const handleSeguroAsientoToggle = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      vencimientoSeguroAsiento: val === 'APLICA' ? '' : val
+    }));
+  };
+
+  const getSeguroAsientoStatus = () => {
+    const val = formData.vencimientoSeguroAsiento;
+    if (!val || val.toLowerCase() === 'sin información' || val.toLowerCase() === 'sin informacion') return 'Sin Información';
+    if (val.toLowerCase() === 'no aplica') return 'No Aplica';
+    return 'APLICA';
+  };
+
+  const seguroAsientoOptions = [
+    { label: '--- Sin Información ---', value: 'Sin Información' },
+    { label: '📅 Aplica (con fecha)', value: 'APLICA' },
+    { label: '✗ No Aplica', value: 'No Aplica' }
+  ];
+
   const complianceOptions = [
     { label: '--- Sin Información ---', value: 'Sin Información' },
     { label: '✓ OK / Vigente', value: 'OK' },
@@ -346,7 +367,21 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, in
               </div>
               <div className="p-5 bg-amber-950/5 rounded-2xl border border-amber-900/10 space-y-4">
                 <label className="text-[8px] font-black text-amber-700 uppercase block border-b border-amber-900/20 pb-2 tracking-[0.2em]">S. Asiento</label>
-                <InputField label="Expiración" name="vencimientoSeguroAsiento" type="date" value={toISODate(formData.vencimientoSeguroAsiento || '')} onChange={handleChange} />
+                <SelectField
+                  label="Estado"
+                  name="seguroAsiento_toggle"
+                  value={getSeguroAsientoStatus()}
+                  onChange={handleSeguroAsientoToggle}
+                  options={seguroAsientoOptions}
+                />
+                <InputField
+                  label="Expiración"
+                  name="vencimientoSeguroAsiento"
+                  type="date"
+                  disabled={getSeguroAsientoStatus() !== 'APLICA'}
+                  value={getSeguroAsientoStatus() === 'APLICA' ? toISODate(formData.vencimientoSeguroAsiento || '') : ''}
+                  onChange={handleChange}
+                />
                 <InputField label="Aseguradora" name="aseguradoraAsiento" value={formData.aseguradoraAsiento || ''} onChange={handleChange} />
               </div>
               <div className="p-5 bg-amber-950/5 rounded-2xl border border-amber-900/10 space-y-4">

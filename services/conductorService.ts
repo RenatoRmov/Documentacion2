@@ -23,6 +23,8 @@ export const mapConductorFromDB = (data: Record<string, unknown>): Conductor => 
   conductorToken:       data.conductor_token ? String(data.conductor_token) : undefined,
   urlCarnet:            String(data.url_carnet ?? ''),
   urlLicencia:          String(data.url_licencia ?? ''),
+  urlCarnetReverso:     String(data.url_carnet_reverso ?? ''),
+  urlLicenciaReverso:   String(data.url_licencia_reverso ?? ''),
 });
 
 export const conductorService = {
@@ -64,8 +66,10 @@ export const conductorService = {
     if (updates.municipalidadLicencia !== undefined) dbData.municipalidad_licencia = updates.municipalidadLicencia || null;
     if (updates.celular     !== undefined) dbData.celular      = updates.celular;
     if (updates.email       !== undefined) dbData.email        = updates.email;
-    if (updates.urlCarnet   !== undefined) dbData.url_carnet   = updates.urlCarnet   || null;
-    if (updates.urlLicencia !== undefined) dbData.url_licencia = updates.urlLicencia || null;
+    if (updates.urlCarnet          !== undefined) dbData.url_carnet          = updates.urlCarnet          || null;
+    if (updates.urlLicencia        !== undefined) dbData.url_licencia        = updates.urlLicencia        || null;
+    if (updates.urlCarnetReverso   !== undefined) dbData.url_carnet_reverso  = updates.urlCarnetReverso   || null;
+    if (updates.urlLicenciaReverso !== undefined) dbData.url_licencia_reverso = updates.urlLicenciaReverso || null;
     const { error } = await supabase.from('conductores').update(dbData).eq('rut', rut);
     if (error) throw error;
   },

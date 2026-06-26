@@ -66,6 +66,8 @@ const mapVehicleFromDB = (data: Record<string, unknown>): Vehicle => {
         urlControlTaximetro:   String(data.url_control_taximetro ?? ''),
         urlCarnet:             String(c?.url_carnet ?? ''),
         urlLicencia:           String(c?.url_licencia ?? ''),
+        urlCarnetReverso:      String(c?.url_carnet_reverso ?? ''),
+        urlLicenciaReverso:    String(c?.url_licencia_reverso ?? ''),
     };
 };
 
@@ -120,8 +122,10 @@ const mapConductorToDB = (vehicle: Partial<Vehicle>): Record<string, unknown> =>
     const lh = safeToISO(vehicle.vigenciaLicenciaHasta); if (lh) d.vigencia_licencia_hasta = lh;
     const sv = safeToISO(vehicle.vencimientoSeguroVidaConductor); if (sv) d.vencimiento_seguro_vida = sv;
     if (str(vehicle.aseguradoraVida))   d.aseguradora_vida        = vehicle.aseguradoraVida!.trim();
-    if (str(vehicle.urlCarnet))         d.url_carnet              = vehicle.urlCarnet!.trim();
-    if (str(vehicle.urlLicencia))       d.url_licencia            = vehicle.urlLicencia!.trim();
+    if (str(vehicle.urlCarnet))          d.url_carnet              = vehicle.urlCarnet!.trim();
+    if (str(vehicle.urlLicencia))        d.url_licencia            = vehicle.urlLicencia!.trim();
+    if (str(vehicle.urlCarnetReverso))   d.url_carnet_reverso      = vehicle.urlCarnetReverso!.trim();
+    if (str(vehicle.urlLicenciaReverso)) d.url_licencia_reverso    = vehicle.urlLicenciaReverso!.trim();
     return d;
 };
 

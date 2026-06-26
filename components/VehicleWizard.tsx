@@ -14,6 +14,7 @@ export interface ConductorForm {
   vigenciaLicenciaDesde: string; vigenciaLicenciaHasta: string;
   vencimientoSeguroVida: string; aseguradoraVida: string;
   urlCarnet?: string; urlLicencia?: string;
+  urlCarnetReverso?: string; urlLicenciaReverso?: string;
 }
 
 export interface VehicleEntry {
@@ -41,7 +42,7 @@ const EMPTY_CONDUCTOR: ConductorForm = {
   vigenciaCarnetDesde: '', vigenciaCarnetHasta: '',
   vigenciaLicenciaDesde: '', vigenciaLicenciaHasta: '',
   vencimientoSeguroVida: '', aseguradoraVida: '',
-  urlCarnet: '', urlLicencia: '',
+  urlCarnet: '', urlLicencia: '', urlCarnetReverso: '', urlLicenciaReverso: '',
 };
 
 const EMPTY_VEHICLE: VehicleEntry = {
@@ -150,6 +151,8 @@ function vehicleToConductorForm(v: Vehicle): ConductorForm {
     aseguradoraVida: v.aseguradoraVida || '',
     urlCarnet: v.urlCarnet || '',
     urlLicencia: v.urlLicencia || '',
+    urlCarnetReverso: v.urlCarnetReverso || '',
+    urlLicenciaReverso: v.urlLicenciaReverso || '',
   };
 }
 
@@ -245,6 +248,8 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
           aseguradoraVida: found.aseguradoraVida,
           urlCarnet: found.urlCarnet || '',
           urlLicencia: found.urlLicencia || '',
+          urlCarnetReverso: found.urlCarnetReverso || '',
+          urlLicenciaReverso: found.urlLicenciaReverso || '',
         }));
         setConductorStatus('found');
       } else {
@@ -253,7 +258,7 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
     } catch { setConductorStatus('new'); }
   };
 
-  const handleConductorUpload = async (field: 'urlCarnet' | 'urlLicencia', file: File) => {
+  const handleConductorUpload = async (field: 'urlCarnet' | 'urlLicencia' | 'urlCarnetReverso' | 'urlLicenciaReverso', file: File) => {
     const rut = conductor.rut.trim();
     if (!rut) return;
     const key = `conductor-${field}`;
@@ -324,8 +329,14 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
     const val = (v.vencimientoControlTaximetro || '').toLowerCase().trim();
     if (!val || val === 'sin información') return 'Sin Información';
     if (val === 'no aplica') return 'No Aplica';
-    // 'sujeto a control' o cualquier fecha real → tiene taxímetro
     return 'SUJETO';
+  };
+
+  const getSeguroAsientoStatus = (v: VehicleEntry) => {
+    const val = (v.vencimientoSeguroAsiento || '').toLowerCase().trim();
+    if (!val || val === 'sin información') return 'Sin Información';
+    if (val === 'no aplica') return 'No Aplica';
+    return 'APLICA';
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -396,12 +407,24 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                       <Field label="Desde"><input name="vigenciaCarnetDesde" type="date" value={toISODate(conductor.vigenciaCarnetDesde)} onChange={handleConductorChange} className={inputCls(true)} /></Field>
                       <Field label="Hasta *"><input name="vigenciaCarnetHasta" type="date" value={toISODate(conductor.vigenciaCarnetHasta)} onChange={handleConductorChange} className={inputCls(true)} /></Field>
                     </div>
-                    <UploadButton
-                      url={conductor.urlCarnet}
-                      uploading={uploadingFields.has('conductor-urlCarnet')}
-                      onUpload={f => handleConductorUpload('urlCarnet', f)}
-                      disabled={!conductor.rut}
-                    />
+                    <div className="space-y-1">
+                      <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Anverso</p>
+                      <UploadButton
+                        url={conductor.urlCarnet}
+                        uploading={uploadingFields.has('conductor-urlCarnet')}
+                        onUpload={f => handleConductorUpload('urlCarnet', f)}
+                        disabled={!conductor.rut}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Reverso</p>
+                      <UploadButton
+                        url={conductor.urlCarnetReverso}
+                        uploading={uploadingFields.has('conductor-urlCarnetReverso')}
+                        onUpload={f => handleConductorUpload('urlCarnetReverso', f)}
+                        disabled={!conductor.rut}
+                      />
+                    </div>
                   </div>
                   <div className="p-4 bg-black/20 rounded-2xl border border-white/5 space-y-3">
                     <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Licencia de Conducir</p>
@@ -414,12 +437,24 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                       <Field label="Ley"><input name="leyLicencia" value={conductor.leyLicencia} onChange={handleConductorChange} className={inputCls()} placeholder="19.495" /></Field>
                     </div>
                     <Field label="Municipalidad"><input name="municipalidadLicencia" value={conductor.municipalidadLicencia} onChange={handleConductorChange} className={inputCls()} /></Field>
-                    <UploadButton
-                      url={conductor.urlLicencia}
-                      uploading={uploadingFields.has('conductor-urlLicencia')}
-                      onUpload={f => handleConductorUpload('urlLicencia', f)}
-                      disabled={!conductor.rut}
-                    />
+                    <div className="space-y-1">
+                      <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Anverso</p>
+                      <UploadButton
+                        url={conductor.urlLicencia}
+                        uploading={uploadingFields.has('conductor-urlLicencia')}
+                        onUpload={f => handleConductorUpload('urlLicencia', f)}
+                        disabled={!conductor.rut}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[7px] text-zinc-600 uppercase tracking-widest">Reverso</p>
+                      <UploadButton
+                        url={conductor.urlLicenciaReverso}
+                        uploading={uploadingFields.has('conductor-urlLicenciaReverso')}
+                        onUpload={f => handleConductorUpload('urlLicenciaReverso', f)}
+                        disabled={!conductor.rut}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -452,6 +487,11 @@ const VehicleWizard: React.FC<Props> = ({ isOpen, onClose, onSave, initialVehicl
                     onTaxToggle={(e) => {
                       const val = e.target.value;
                       setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoControlTaximetro: val === 'SUJETO' ? 'Sujeto a Control' : val } : vv));
+                    }}
+                    getSeguroAsientoStatus={() => getSeguroAsientoStatus(v)}
+                    onSeguroAsientoToggle={(e) => {
+                      const val = e.target.value;
+                      setVehicles(prev => prev.map((vv, i) => i === idx ? { ...vv, vencimientoSeguroAsiento: val === 'APLICA' ? '' : val } : vv));
                     }}
                     isEditing={isEditing}
                     isExistingVehicle={existingPatentes.has(v.patente)}
@@ -556,18 +596,21 @@ interface VehicleCardProps {
   onToggle: () => void; onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onRemove: () => void; getTaxStatus: () => string;
   onTaxToggle: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  getSeguroAsientoStatus: () => string;
+  onSeguroAsientoToggle: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onUpload: (field: string, file: File) => Promise<void>;
   isUploading: (field: string) => boolean;
 }
 
 const VehicleCard: React.FC<VehicleCardProps> = ({
   idx, v, isExpanded, isOnly, isEditing, isExistingVehicle, onToggle, onChange, onRemove,
-  getTaxStatus, onTaxToggle, onUpload, isUploading,
+  getTaxStatus, onTaxToggle, getSeguroAsientoStatus, onSeguroAsientoToggle, onUpload, isUploading,
 }) => {
   const iCls = (date = false) =>
     `w-full ${date ? 'px-1.5 text-[10px]' : 'px-3 text-[11px]'} py-2.5 bg-[#0A0C0E] border border-white/5 rounded-xl font-semibold text-zinc-200 focus:border-[#C29329]/40 outline-none transition-all placeholder:text-zinc-800 min-w-0`;
 
   const taxStatus = getTaxStatus();
+  const seguroStatus = getSeguroAsientoStatus();
 
   return (
     <div className="bg-black/20 rounded-2xl border border-white/5 overflow-hidden">
@@ -656,10 +699,21 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <SectionLabel>Seguros del Vehículo</SectionLabel>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-start">
-              <VDF label="Seguro Asiento" fieldKey="urlSeguroAsiento" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
-                <input name="vencimientoSeguroAsiento" type="date" value={toISODate(v.vencimientoSeguroAsiento)} onChange={onChange} className={iCls(true)} />
-              </VDF>
-              <VF label="Aseguradora Asiento"><input name="aseguradoraAsiento" value={v.aseguradoraAsiento} onChange={onChange} className={iCls()} /></VF>
+              <VF label="S. Asiento">
+                <VS name="seguroAsiento_toggle" value={seguroStatus} onChange={onSeguroAsientoToggle} opts={[
+                  { label: '— Sin Información', value: 'Sin Información' },
+                  { label: '📅 Aplica (con fecha)', value: 'APLICA' },
+                  { label: '✗ No Aplica', value: 'No Aplica' },
+                ]} />
+              </VF>
+              {seguroStatus === 'APLICA' && (
+                <VDF label="Seguro Asiento" fieldKey="urlSeguroAsiento" vehicle={v} isUploading={isUploading} onUpload={onUpload}>
+                  <input name="vencimientoSeguroAsiento" type="date" value={toISODate(v.vencimientoSeguroAsiento)} onChange={onChange} className={iCls(true)} />
+                </VDF>
+              )}
+              {seguroStatus === 'APLICA' && (
+                <VF label="Aseguradora Asiento"><input name="aseguradoraAsiento" value={v.aseguradoraAsiento} onChange={onChange} className={iCls()} /></VF>
+              )}
             </div>
           </div>
 

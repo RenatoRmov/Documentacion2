@@ -20,6 +20,8 @@ export interface Conductor {
   conductorToken?: string;
   urlCarnet?: string;
   urlLicencia?: string;
+  urlCarnetReverso?: string;
+  urlLicenciaReverso?: string;
 }
 
 export interface Vehicle {
@@ -83,6 +85,8 @@ export interface Vehicle {
   urlControlTaximetro?: string;
   urlCarnet?: string;
   urlLicencia?: string;
+  urlCarnetReverso?: string;
+  urlLicenciaReverso?: string;
 }
 
 export type ExpirationStatus = 'Vencido' | 'Próximo a vencer' | 'Al día' | 'No Registra';

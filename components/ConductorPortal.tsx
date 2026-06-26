@@ -18,6 +18,12 @@ const DATE_TO_URL_KEY: Record<string, string> = {
   vencimientoControlTaximetro:   'urlControlTaximetro',
 };
 
+// Mapeo campo de fecha → campo URL del reverso (solo carnet y licencia)
+const SECOND_URL_KEY_MAP: Record<string, string> = {
+  vigenciaCarnetHasta:   'urlCarnetReverso',
+  vigenciaLicenciaHasta: 'urlLicenciaReverso',
+};
+
 // Mapeo campo → etiqueta legible para el log de actividad
 const FIELD_LABEL_MAP: Record<string, string> = {
   vigenciaCarnetHasta:           'Carnet de Identidad',
@@ -33,6 +39,8 @@ const FIELD_LABEL_MAP: Record<string, string> = {
   vencimientoPadron:             'Padrón',
   urlCarnet:                     'Carnet de Identidad (archivo)',
   urlLicencia:                   'Licencia de Conducir (archivo)',
+  urlCarnetReverso:              'Carnet de Identidad (reverso)',
+  urlLicenciaReverso:            'Licencia de Conducir (reverso)',
   urlPermisoCirculacion:         'Permiso de Circulación (archivo)',
   urlRevisionTecnica:            'Revisión Técnica (archivo)',
   urlSOAP:                       'SOAP (archivo)',
@@ -41,18 +49,18 @@ const FIELD_LABEL_MAP: Record<string, string> = {
   urlControlTaximetro:           'Control de Taxímetro (archivo)',
 };
 
-const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; extraField?: { key: keyof Conductor; label: string; placeholder?: string } }[] = [
-  { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad' },
-  { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir',
+const CONDUCTOR_DOCS: { docKey: keyof Conductor; label: string; secondUrlKey?: keyof Conductor; extraField?: { key: keyof Conductor; label: string; placeholder?: string } }[] = [
+  { docKey: 'vigenciaCarnetHasta',   label: 'Carnet de Identidad',   secondUrlKey: 'urlCarnetReverso' },
+  { docKey: 'vigenciaLicenciaHasta', label: 'Licencia de Conducir',  secondUrlKey: 'urlLicenciaReverso',
     extraField: { key: 'municipalidadLicencia', label: 'Municipalidad que la otorga', placeholder: 'Ej: Santiago, Las Condes...' } },
 ];
 
-const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean; extraField?: { key: keyof Vehicle; label: string; placeholder?: string } }[] = [
+const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; hasTaxToggle?: boolean; toggleLabel?: string; extraField?: { key: keyof Vehicle; label: string; placeholder?: string } }[] = [
   { docKey: 'vencimientoPermisoCirculacion', label: 'Permiso de Circulación',
     extraField: { key: 'municipalidadPermiso', label: 'Municipalidad que lo otorga', placeholder: 'Ej: Santiago, Las Condes...' } },
   { docKey: 'vencimientoRevisionTecnica',    label: 'Revisión Técnica' },
   { docKey: 'vencimientoSOAP',               label: 'SOAP' },
-  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos',
+  { docKey: 'vencimientoSeguroAsiento',      label: 'Seguro de Asientos', hasTaxToggle: true, toggleLabel: 'seguro de asiento',
     extraField: { key: 'aseguradoraAsiento', label: 'Aseguradora' } },
   { docKey: 'vencimientoControlTaximetro',   label: 'Control de Taxímetro', hasTaxToggle: true },
   { docKey: 'vencimientoPadron',             label: 'Padrón', fileOnly: true },
@@ -141,18 +149,21 @@ function getTaxStatusFromValue(val: string): TaxStatus {
 // ─── DocRow ───────────────────────────────────────────────────────────────────
 
 interface DocRowProps {
-  contextKey:    string;
-  label:         string;
-  value:         string;
-  status:        DocStatus;
-  urlValue?:     string;
-  fileOnly?:     boolean;
-  hasTaxToggle?: boolean;
-  extraField?:   { key: string; label: string; value: string; placeholder?: string };
-  editing:       string | null;
-  saving:        boolean;
-  uploading:     boolean;
-  saved:         Set<string>;
+  contextKey:       string;
+  label:            string;
+  value:            string;
+  status:           DocStatus;
+  urlValue?:        string;
+  secondUrlValue?:  string;
+  fileOnly?:        boolean;
+  hasTaxToggle?:    boolean;
+  toggleLabel?:     string;
+  extraField?:      { key: string; label: string; value: string; placeholder?: string };
+  editing:          string | null;
+  saving:           boolean;
+  uploading:        boolean;
+  uploadingReverso?: boolean;
+  saved:            Set<string>;
   onStartEdit: (contextKey: string) => void;
   onSave: (contextKey: string, dateVal: string, extra?: Record<string, string>) => void;
   onCancel: () => void;
@@ -160,16 +171,18 @@ interface DocRowProps {
 }
 
 const DocRow: React.FC<DocRowProps> = ({
-  contextKey, label, value, status, urlValue, fileOnly, hasTaxToggle, extraField,
-  editing, saving, uploading, saved,
+  contextKey, label, value, status, urlValue, secondUrlValue, fileOnly, hasTaxToggle, toggleLabel, extraField,
+  editing, saving, uploading, uploadingReverso, saved,
   onStartEdit, onSave, onCancel, onUpload,
 }) => {
   const meta      = STATUS_META[status];
   const isEditing = editing === contextKey;
   const wasSaved  = saved.has(contextKey);
   const fileRef   = useRef<HTMLInputElement>(null);
+  const fileRef2  = useRef<HTMLInputElement>(null);
   const fieldKey  = contextKey.slice(contextKey.indexOf(':') + 1);
   const hasUrlField = fieldKey in DATE_TO_URL_KEY;
+  const hasSecondUrl = fieldKey in SECOND_URL_KEY_MAP;
 
   // Estado local de fecha, municipalidad y toggle de taxímetro
   const [localDate,      setLocalDate]      = useState('');
@@ -224,7 +237,13 @@ const DocRow: React.FC<DocRowProps> = ({
                   {urlValue && (
                     <a href={urlValue} target="_blank" rel="noopener noreferrer"
                       className="text-[8px] font-black text-emerald-400 bg-emerald-900/20 border border-emerald-700/20 px-2 py-0.5 rounded-lg hover:bg-emerald-900/30 transition-all whitespace-nowrap">
-                      📎 Ver doc
+                      📎 {secondUrlValue ? 'Anverso' : 'Ver doc'}
+                    </a>
+                  )}
+                  {secondUrlValue && (
+                    <a href={secondUrlValue} target="_blank" rel="noopener noreferrer"
+                      className="text-[8px] font-black text-emerald-400 bg-emerald-900/20 border border-emerald-700/20 px-2 py-0.5 rounded-lg hover:bg-emerald-900/30 transition-all whitespace-nowrap">
+                      📎 Reverso
                     </a>
                   )}
                 </>
@@ -264,39 +283,55 @@ const DocRow: React.FC<DocRowProps> = ({
       {isEditing && (hasTaxToggle || status !== 'na') && (
         <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/8 bg-[#13161c]">
 
-          {/* Toggle de taxímetro */}
+          {/* Toggle genérico (taxímetro o seguro de asiento) */}
           {hasTaxToggle && (
             <div>
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
-                ¿Aplica taxímetro en este vehículo?
+                {toggleLabel ? `¿Aplica ${toggleLabel}?` : '¿Aplica taxímetro en este vehículo?'}
               </label>
               <select
                 value={localTaxStatus}
                 onChange={e => setLocalTaxStatus(e.target.value as TaxStatus)}
                 className="w-full bg-[#1B1F24] border border-white/10 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-amber-400 transition-colors">
                 <option value="Sin Información">— Sin información</option>
-                <option value="SUJETO">📅 Sujeto a control (tiene taxímetro)</option>
-                <option value="No Aplica">✗ No aplica (sin taxímetro)</option>
+                <option value="SUJETO">{toggleLabel ? `📅 Sí aplica (con fecha de vencimiento)` : '📅 Sujeto a control (tiene taxímetro)'}</option>
+                <option value="No Aplica">✗ No aplica</option>
               </select>
             </div>
           )}
 
-          {/* Fecha de vencimiento */}
+          {/* Fecha de vencimiento con selector de año */}
           {!fileOnly && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div>
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
                 Fecha de vencimiento
               </label>
-              <input
-                type="date"
-                value={localDate}
-                onChange={e => setLocalDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={localDate ? localDate.slice(0, 4) : ''}
+                  onChange={e => {
+                    const yr = e.target.value;
+                    if (!yr) return;
+                    const rest = localDate ? localDate.slice(4) : '-01-01';
+                    setLocalDate(yr + rest);
+                  }}
+                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]">
+                  <option value="">Año</option>
+                  {Array.from({ length: 14 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={localDate}
+                  onChange={e => setLocalDate(e.target.value)}
+                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]"
+                />
+              </div>
             </div>
           )}
 
-          {/* Municipalidad (opcional, solo para licencia y permiso de circulación) */}
+          {/* Campo extra (municipalidad, aseguradora, etc.) */}
           {extraField && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div>
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
@@ -316,7 +351,7 @@ const DocRow: React.FC<DocRowProps> = ({
           {hasUrlField && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
             <div className="space-y-1.5">
               <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
-                {fileOnly ? 'Foto o PDF del Padrón' : 'Foto o PDF del documento'}
+                {fileOnly ? 'Foto o PDF del Padrón' : hasSecondUrl ? 'Anverso (foto o PDF)' : 'Foto o PDF del documento'}
               </label>
               <input ref={fileRef} type="file" accept="image/*,.pdf,.heic,.heif"
                 className="hidden"
@@ -331,12 +366,42 @@ const DocRow: React.FC<DocRowProps> = ({
                     ? 'bg-white/5 border-white/10 text-zinc-300 hover:text-white'
                     : 'bg-[#C29329]/10 border-[#C29329]/30 text-[#C29329] hover:bg-[#C29329]/20'
                 }`}>
-                {uploading ? '⏳ Subiendo...' : urlValue ? '📎 Reemplazar documento' : '📎 Adjuntar foto o PDF'}
+                {uploading ? '⏳ Subiendo...' : urlValue ? '📎 Reemplazar' : '📎 Adjuntar foto o PDF'}
               </button>
               {urlValue && !uploading && (
                 <a href={urlValue} target="_blank" rel="noopener noreferrer"
                   className="block text-center text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors py-0.5">
-                  Ver documento actual →
+                  Ver actual →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Reverso (solo para carnet y licencia) */}
+          {hasSecondUrl && (!hasTaxToggle || localTaxStatus === 'SUJETO') && (
+            <div className="space-y-1.5">
+              <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                Reverso (foto o PDF)
+              </label>
+              <input ref={fileRef2} type="file" accept="image/*,.pdf,.heic,.heif"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(`${contextKey}|rev`, f); e.target.value = ''; }}
+              />
+              <button type="button" onClick={() => fileRef2.current?.click()}
+                disabled={uploadingReverso}
+                className={`w-full py-3 rounded-lg text-[11px] font-bold border transition-all flex items-center justify-center gap-2 ${
+                  uploadingReverso
+                    ? 'bg-zinc-800 border-zinc-700 text-zinc-400 animate-pulse'
+                    : secondUrlValue
+                    ? 'bg-white/5 border-white/10 text-zinc-300 hover:text-white'
+                    : 'bg-[#C29329]/10 border-[#C29329]/30 text-[#C29329] hover:bg-[#C29329]/20'
+                }`}>
+                {uploadingReverso ? '⏳ Subiendo...' : secondUrlValue ? '📎 Reemplazar' : '📎 Adjuntar reverso'}
+              </button>
+              {secondUrlValue && !uploadingReverso && (
+                <a href={secondUrlValue} target="_blank" rel="noopener noreferrer"
+                  className="block text-center text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors py-0.5">
+                  Ver reverso actual →
                 </a>
               )}
             </div>
@@ -386,14 +451,16 @@ const InfoRow = ({ label, value }: { label: string; value?: string }) =>
 
 // Tipo compartido para las filas de documentos
 interface DocItem {
-  contextKey:    string;
-  label:         string;
-  value:         string;
-  status:        DocStatus;
-  urlValue?:     string;
-  fileOnly?:     boolean;
-  hasTaxToggle?: boolean;
-  extraField?:   { key: string; label: string; value: string; placeholder?: string };
+  contextKey:      string;
+  label:           string;
+  value:           string;
+  status:          DocStatus;
+  urlValue?:       string;
+  secondUrlValue?: string;
+  fileOnly?:       boolean;
+  hasTaxToggle?:   boolean;
+  toggleLabel?:    string;
+  extraField?:     { key: string; label: string; value: string; placeholder?: string };
 }
 
 // Props de callbacks compartidos — se pasan desde ConductorPortal hacia abajo
@@ -426,6 +493,7 @@ const DocSection: React.FC<{
         {items.map(d => (
           <DocRow key={d.contextKey} {...d}
             uploading={uploading === d.contextKey}
+            uploadingReverso={uploading === d.contextKey + '|rev'}
             {...handlers} />
         ))}
       </div>
@@ -457,6 +525,7 @@ const GroupedDocs: React.FC<{
             {ok.map(d => (
               <DocRow key={d.contextKey} {...d}
                 uploading={uploading === d.contextKey}
+                uploadingReverso={uploading === d.contextKey + '|rev'}
                 {...handlers} />
             ))}
           </div>
@@ -566,10 +635,12 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
 
   const handleUpload = async (contextKey: string, file: File) => {
     if (!conductor) return;
-    const colonIdx = contextKey.indexOf(':');
-    const ctx      = contextKey.slice(0, colonIdx);
-    const fieldKey = contextKey.slice(colonIdx + 1);
-    const urlKey   = DATE_TO_URL_KEY[fieldKey];
+    const isReverso      = contextKey.endsWith('|rev');
+    const realContextKey = isReverso ? contextKey.slice(0, -4) : contextKey;
+    const colonIdx = realContextKey.indexOf(':');
+    const ctx      = realContextKey.slice(0, colonIdx);
+    const fieldKey = realContextKey.slice(colonIdx + 1);
+    const urlKey   = isReverso ? SECOND_URL_KEY_MAP[fieldKey] : DATE_TO_URL_KEY[fieldKey];
     if (!urlKey) return;
 
     // URL actual del archivo que va a ser reemplazado (para eliminarlo del storage después)
@@ -645,17 +716,20 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
   };
 
   const conductorDocs = CONDUCTOR_DOCS.map(d => {
-    const fieldKey   = String(d.docKey);
-    const value      = String((conductor as unknown as Record<string, unknown>)[fieldKey] ?? '');
-    const urlKey     = DATE_TO_URL_KEY[fieldKey];
-    const urlValue   = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
+    const fieldKey      = String(d.docKey);
+    const value         = String((conductor as unknown as Record<string, unknown>)[fieldKey] ?? '');
+    const urlKey        = DATE_TO_URL_KEY[fieldKey];
+    const urlValue      = urlKey ? String((conductor as unknown as Record<string, unknown>)[urlKey] ?? '') : undefined;
+    const secondUrlValue = d.secondUrlKey
+      ? String((conductor as unknown as Record<string, unknown>)[String(d.secondUrlKey)] ?? '') || undefined
+      : undefined;
     const extraField = d.extraField ? {
       key:         String(d.extraField.key),
       label:       d.extraField.label,
       value:       String((conductor as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
       placeholder: d.extraField.placeholder,
     } : undefined;
-    return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined, extraField };
+    return { contextKey: `conductor:${fieldKey}`, label: d.label, value, status: getDocStatus(value), urlValue: urlValue || undefined, secondUrlValue, extraField };
   });
 
   const vehicleSections = vehicles.map(v => {
@@ -674,7 +748,7 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
         value:       String((v as unknown as Record<string, unknown>)[String(d.extraField.key)] ?? ''),
         placeholder: d.extraField.placeholder,
       } : undefined;
-      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle, extraField };
+      return { contextKey: `${v.patente}:${fieldKey}`, label: d.label, value, status, urlValue: urlValue || undefined, fileOnly: d.fileOnly, hasTaxToggle: d.hasTaxToggle, toggleLabel: d.toggleLabel, extraField };
     });
     return { vehicle: v, docs };
   });
