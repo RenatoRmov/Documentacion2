@@ -66,6 +66,15 @@ const VEHICLE_DOCS: { docKey: keyof Vehicle; label: string; fileOnly?: boolean; 
   { docKey: 'vencimientoPadron',             label: 'Padrón', fileOnly: true },
 ];
 
+// Opciones de tipo de vehículo — mismas que usa el panel de administración
+const TIPO_OPTIONS = [
+  { label: 'Automóvil',      value: 'AUTOMOVIL' },
+  { label: 'Station Wagon',  value: 'STATION WAGON' },
+  { label: 'SUV',            value: 'SUV' },
+  { label: 'Minibus',        value: 'MINIBUS' },
+  { label: 'Taxi Ejecutivo', value: 'TAXI EJECUTIVO' },
+];
+
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
 
 function getDaysUntil(dateStr: string): number | null {
@@ -549,6 +558,20 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
   const [uploading, setUploading] = useState<string | null>(null); // contextKey being uploaded
   const [saved,     setSaved]     = useState<Set<string>>(new Set());
 
+  // Edición de datos del vehículo (marca, modelo, color, año, asientos, estado)
+  // — nunca toca patente, email ni celular.
+  const [vehicleInfoEditing, setVehicleInfoEditing] = useState<string | null>(null); // patente en edición
+  const [vehicleInfoForm, setVehicleInfoForm] = useState({ tipo: '', marca: '', modelo: '', color: '', año: '', asientos: '', estado: 'Externo' as 'Casa' | 'Externo' });
+  const [savingVehicleInfo, setSavingVehicleInfo] = useState(false);
+
+  // Agregar / reemplazar vehículo
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [newVehicleForm, setNewVehicleForm] = useState({ patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: String(new Date().getFullYear()), asientos: '5' });
+  const [replaceTarget, setReplaceTarget] = useState('');
+  const [savingNewVehicle, setSavingNewVehicle] = useState(false);
+  const [newVehicleError, setNewVehicleError] = useState<string | null>(null);
+  const [newVehicleSaved, setNewVehicleSaved] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -682,6 +705,145 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
       alert(`Error al subir el archivo: ${err instanceof Error ? err.message : 'Intenta de nuevo.'}`);
     } finally {
       setUploading(null);
+    }
+  };
+
+  // ── Editar datos del vehículo (marca, modelo, color, año, asientos, estado) ──
+
+  const startEditVehicleInfo = (v: Vehicle) => {
+    setVehicleInfoForm({
+      tipo: v.tipo || 'AUTOMOVIL',
+      marca: v.marca || '',
+      modelo: v.modelo || '',
+      color: v.color || '',
+      año: String(v.año || ''),
+      asientos: String(v.asientos || ''),
+      estado: v.estado || 'Externo',
+    });
+    setVehicleInfoEditing(v.patente);
+  };
+
+  const saveVehicleInfo = async (patente: string) => {
+    setSavingVehicleInfo(true);
+    try {
+      const f = vehicleInfoForm;
+      const updated = await vehicleService.updateVehicle(patente, {
+        tipo: f.tipo,
+        marca: f.marca.trim(),
+        modelo: f.modelo.trim(),
+        color: f.color.trim(),
+        año: Number(f.año) || 0,
+        asientos: Number(f.asientos) || 0,
+        estado: f.estado,
+      });
+      setVehicles(prev => prev.map(v => v.patente === patente ? updated : v));
+      setVehicleInfoEditing(null);
+      if (conductor) {
+        fetch('/api/log-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conductor_rut:    conductor.rut,
+            conductor_nombre: conductor.nombre,
+            movil:            conductor.numeroMovil ?? '',
+            patente,
+            field_label:      'Datos del vehículo (marca/modelo/color/año)',
+          }),
+        }).catch(() => {});
+      }
+    } catch (err: unknown) {
+      alert(`Error al guardar: ${err instanceof Error ? err.message : 'Intenta de nuevo.'}`);
+    } finally {
+      setSavingVehicleInfo(false);
+    }
+  };
+
+  // ── Agregar vehículo nuevo (adicional o en reemplazo de uno actual) ──
+
+  const submitNewVehicle = async () => {
+    if (!conductor) return;
+    const patente = newVehicleForm.patente.trim().toUpperCase().replace(/\s+/g, '');
+    if (!patente) { setNewVehicleError('Ingresa la patente del vehículo.'); return; }
+    if (vehicles.some(v => v.patente.toUpperCase() === patente)) {
+      setNewVehicleError('Ya tienes un vehículo registrado con esa patente.');
+      return;
+    }
+    setSavingNewVehicle(true);
+    setNewVehicleError(null);
+    try {
+      const newVehicle: Vehicle = {
+        id: conductor.numeroMovil,
+        patente,
+        tipo: newVehicleForm.tipo,
+        marca: newVehicleForm.marca.trim(),
+        modelo: newVehicleForm.modelo.trim(),
+        color: newVehicleForm.color.trim(),
+        año: Number(newVehicleForm.año) || 0,
+        asientos: Number(newVehicleForm.asientos) || 0,
+        estado: 'Externo',
+        statusOperativo: 'Activo',
+        nombrePropietario: '', rutPropietario: '',
+        vencimientoPadron: '', vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
+        vencimientoRevisionTecnica: '', vencimientoSOAP: '', vencimientoControlTaximetro: 'Sin Información',
+        certificadoAntecedentes: 'Sin Información', prestacionSS: 'Sin Información', contratoArriendo: 'Sin Información',
+        vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
+        vencimientoSeguroAsiento: '', aseguradoraAsiento: '',
+        vencimientoSeguroVidaConductor: conductor.vencimientoSeguroVida,
+        aseguradoraVida: conductor.aseguradoraVida,
+        nombreConductor: conductor.nombre,
+        rutConductor: conductor.rut,
+        fechaNacimiento: conductor.fechaNacimiento,
+        celular: conductor.celular,
+        email: conductor.email,
+        direccion: conductor.direccion,
+        comuna: conductor.comuna,
+        claseLicencia: conductor.claseLicencia,
+        leyLicencia: conductor.leyLicencia,
+        municipalidadLicencia: conductor.municipalidadLicencia,
+        vigenciaCarnetDesde: conductor.vigenciaCarnetDesde,
+        vigenciaCarnetHasta: conductor.vigenciaCarnetHasta,
+        vigenciaLicenciaDesde: conductor.vigenciaLicenciaDesde,
+        vigenciaLicenciaHasta: conductor.vigenciaLicenciaHasta,
+        conductorRut: conductor.rut,
+      };
+
+      const created = await vehicleService.createVehicle(newVehicle);
+      let nextVehicles = [...vehicles, created];
+
+      if (replaceTarget) {
+        await vehicleService.updateVehicle(replaceTarget, { statusOperativo: 'Inactivo', rutConductor: '' });
+        nextVehicles = nextVehicles.filter(v => v.patente !== replaceTarget);
+      }
+
+      fetch('/api/log-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conductor_rut:    conductor.rut,
+          conductor_nombre: conductor.nombre,
+          movil:            conductor.numeroMovil ?? '',
+          patente,
+          field_label:      replaceTarget ? `Vehículo reemplazado (antes: ${replaceTarget})` : 'Vehículo adicional agregado',
+        }),
+      }).catch(() => {});
+
+      setVehicles(nextVehicles);
+      setNewVehicleSaved(true);
+      setTimeout(() => {
+        setNewVehicleSaved(false);
+        setShowAddVehicle(false);
+        setNewVehicleForm({ patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: String(new Date().getFullYear()), asientos: '5' });
+        setReplaceTarget('');
+      }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setNewVehicleError(
+        msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')
+          ? 'Esa patente ya existe en el sistema. Verifica que esté bien escrita.'
+          : `Error al guardar: ${msg}`
+      );
+    } finally {
+      setSavingNewVehicle(false);
     }
   };
 
@@ -843,17 +1005,92 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
         {/* ── Secciones por vehículo ── */}
         {vehicleSections.map(({ vehicle, docs }) => (
           <div key={vehicle.patente} className="bg-[#1B1F24] rounded-2xl border border-white/5 overflow-hidden">
-            <div className="px-5 py-4 bg-black/20 border-b border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="bg-white/5 text-zinc-300 font-black px-2 py-1 rounded-lg text-[10px] italic">{vehicle.patente}</span>
-                <div>
-                  <p className="text-white font-black uppercase tracking-widest text-[11px]">{vehicle.marca} {vehicle.modelo}</p>
-                  <p className="text-zinc-600 text-[8px] uppercase tracking-widest">{vehicle.tipo} · {vehicle.año}</p>
+            <div className="px-5 py-4 bg-black/20 border-b border-white/5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="bg-white/5 text-zinc-300 font-black px-2 py-1 rounded-lg text-[10px] italic shrink-0">{vehicle.patente}</span>
+                  <div className="min-w-0">
+                    <p className="text-white font-black uppercase tracking-widest text-[11px] truncate">{vehicle.marca} {vehicle.modelo}</p>
+                    <p className="text-zinc-600 text-[8px] uppercase tracking-widest truncate">{vehicle.tipo} · {vehicle.color} · {vehicle.año}{vehicle.asientos ? ` · ${vehicle.asientos} asientos` : ''}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${vehicle.statusOperativo === 'Activo' ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'}`}>
+                    {vehicle.statusOperativo}
+                  </span>
+                  {vehicleInfoEditing !== vehicle.patente && (
+                    <button onClick={() => startEditVehicleInfo(vehicle)}
+                      className="text-[8px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg text-zinc-500 hover:text-white border border-white/5 hover:border-white/10 transition-all whitespace-nowrap">
+                      ✏️ Editar
+                    </button>
+                  )}
                 </div>
               </div>
-              <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${vehicle.statusOperativo === 'Activo' ? 'bg-emerald-900/30 text-emerald-500' : 'bg-zinc-800 text-zinc-600'}`}>
-                {vehicle.statusOperativo}
-              </span>
+
+              {vehicleInfoEditing === vehicle.patente && (
+                <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
+                  <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Datos del vehículo</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo</label>
+                      <select value={vehicleInfoForm.tipo} onChange={e => setVehicleInfoForm(p => ({ ...p, tipo: e.target.value }))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]">
+                        {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Estado</label>
+                      <select value={vehicleInfoForm.estado} onChange={e => setVehicleInfoForm(p => ({ ...p, estado: e.target.value as 'Casa' | 'Externo' }))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]">
+                        <option value="Externo">Externo</option>
+                        <option value="Casa">Casa</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Marca</label>
+                      <input value={vehicleInfoForm.marca} onChange={e => setVehicleInfoForm(p => ({ ...p, marca: e.target.value }))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Modelo</label>
+                      <input value={vehicleInfoForm.modelo} onChange={e => setVehicleInfoForm(p => ({ ...p, modelo: e.target.value }))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Color</label>
+                      <input value={vehicleInfoForm.color} onChange={e => setVehicleInfoForm(p => ({ ...p, color: e.target.value }))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Año</label>
+                        <input type="number" min="1990" max={new Date().getFullYear() + 1} value={vehicleInfoForm.año}
+                          onChange={e => setVehicleInfoForm(p => ({ ...p, año: e.target.value }))}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Asientos</label>
+                        <input type="number" min="1" max="60" value={vehicleInfoForm.asientos}
+                          onChange={e => setVehicleInfoForm(p => ({ ...p, asientos: e.target.value }))}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-zinc-600 italic leading-relaxed">
+                    La patente no se puede editar aquí. Si cambiaste de vehículo, usa "Tengo un vehículo nuevo" más abajo.
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => saveVehicleInfo(vehicle.patente)} disabled={savingVehicleInfo}
+                      className="flex-1 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-30">
+                      {savingVehicleInfo ? 'Guardando...' : '✓ Guardar'}
+                    </button>
+                    <button onClick={() => setVehicleInfoEditing(null)} disabled={savingVehicleInfo}
+                      className="px-5 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wide border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-5">
               {docs.length > 0 ? <GroupedDocs docs={docs} uploading={uploading} handlers={handlers} /> : (
@@ -869,6 +1106,92 @@ const ConductorPortal: React.FC<{ token?: string; rut?: string }> = ({ token, ru
             <p className="text-xs font-black uppercase tracking-widest text-zinc-600">Sin vehículos asignados</p>
           </div>
         )}
+
+        {/* ── Agregar o reemplazar vehículo ── */}
+        <div className="bg-[#1B1F24] rounded-2xl border border-white/5 overflow-hidden">
+          {!showAddVehicle ? (
+            <button onClick={() => setShowAddVehicle(true)}
+              className="w-full px-5 py-5 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#C29329] hover:bg-[#C29329]/5 transition-all">
+              <span className="text-base">🚗</span> Tengo un vehículo nuevo
+            </button>
+          ) : (
+            <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-black text-white uppercase tracking-widest">Vehículo Nuevo</p>
+                <button onClick={() => { setShowAddVehicle(false); setNewVehicleError(null); }} className="text-zinc-600 hover:text-zinc-400 text-xs">✕</button>
+              </div>
+
+              {vehicles.some(v => v.statusOperativo === 'Activo') && (
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">¿Es adicional o reemplaza uno de tus vehículos actuales?</label>
+                  <select value={replaceTarget} onChange={e => setReplaceTarget(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]">
+                    <option value="">Es un vehículo adicional</option>
+                    {vehicles.filter(v => v.statusOperativo === 'Activo').map(v => (
+                      <option key={v.patente} value={v.patente}>Reemplaza a {v.patente} — {v.marca} {v.modelo}</option>
+                    ))}
+                  </select>
+                  {replaceTarget && (
+                    <p className="text-[9px] text-amber-500/80 mt-2 leading-relaxed">
+                      El vehículo {replaceTarget} quedará inactivo y dejará de aparecer en tu portal.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Patente *</label>
+                  <input value={newVehicleForm.patente}
+                    onChange={e => setNewVehicleForm(p => ({ ...p, patente: e.target.value.toUpperCase() }))}
+                    placeholder="AB1234" maxLength={8}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[13px] text-white font-mono tracking-widest placeholder-zinc-700 focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo</label>
+                  <select value={newVehicleForm.tipo} onChange={e => setNewVehicleForm(p => ({ ...p, tipo: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors [color-scheme:dark]">
+                    {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Año</label>
+                  <input type="number" min="1990" max={new Date().getFullYear() + 1} value={newVehicleForm.año}
+                    onChange={e => setNewVehicleForm(p => ({ ...p, año: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Marca</label>
+                  <input value={newVehicleForm.marca} onChange={e => setNewVehicleForm(p => ({ ...p, marca: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Modelo</label>
+                  <input value={newVehicleForm.modelo} onChange={e => setNewVehicleForm(p => ({ ...p, modelo: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Color</label>
+                  <input value={newVehicleForm.color} onChange={e => setNewVehicleForm(p => ({ ...p, color: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Asientos</label>
+                  <input type="number" min="1" max="60" value={newVehicleForm.asientos}
+                    onChange={e => setNewVehicleForm(p => ({ ...p, asientos: e.target.value }))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                </div>
+              </div>
+
+              {newVehicleError && <p className="text-[10px] font-bold text-red-400">{newVehicleError}</p>}
+
+              <button onClick={submitNewVehicle} disabled={savingNewVehicle || newVehicleSaved || !newVehicleForm.patente.trim()}
+                className="w-full py-3 rounded-lg text-[11px] font-black uppercase tracking-wide bg-[#C29329] text-black hover:bg-amber-500 transition-all disabled:opacity-40">
+                {newVehicleSaved ? '✓ Vehículo guardado' : savingNewVehicle ? 'Guardando...' : replaceTarget ? '✓ Reemplazar vehículo' : '✓ Agregar vehículo'}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* ── Contacto del encargado ── */}
         {contact && (contact.adminName || contact.contactEmail || contact.contactWhatsApp) && (
