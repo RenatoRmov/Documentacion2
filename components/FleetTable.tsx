@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Vehicle } from '../types';
 import StatusBadge from './StatusBadge';
+import { inviteService } from '../services/inviteService';
 import * as XLSX from 'xlsx';
 
 interface FleetTableProps {
@@ -18,6 +19,8 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
   const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [copied, setCopied]         = useState<string | null>(null);
   const [sendingAlert, setSendingAlert] = useState(false);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [inviteCopied, setInviteCopied]     = useState(false);
 
   const filtered = fleet.filter(v =>
     v.patente.toLowerCase().includes(search.toLowerCase()) ||
@@ -54,6 +57,25 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
       setCopied(v.patente);
       setTimeout(() => setCopied(null), 2000);
     });
+  };
+
+  // ── Link de alta (registro de móvil nuevo, un solo uso) ──
+
+  const handleGenerateInvite = async () => {
+    const numeroMovil = window.prompt('Número de móvil para este nuevo registro (ej: 42):');
+    if (!numeroMovil || !numeroMovil.trim()) return;
+    setCreatingInvite(true);
+    try {
+      const token = await inviteService.createInvite(numeroMovil.trim());
+      const link = `${window.location.origin}/nuevo?token=${token}`;
+      await navigator.clipboard.writeText(link);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 3000);
+    } catch {
+      alert('Error al generar el link. Intenta de nuevo.');
+    } finally {
+      setCreatingInvite(false);
+    }
   };
 
   // ── Send alert to selected ──
@@ -155,6 +177,12 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
             className="px-8 py-4 bg-emerald-950/20 border border-emerald-500/20 hover:border-emerald-500/50 text-emerald-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 group">
             <span className="text-base group-hover:scale-110 transition-transform">📊</span>
             Exportar Excel
+          </button>
+          <button onClick={handleGenerateInvite} disabled={creatingInvite}
+            className="px-8 py-4 bg-blue-950/20 border border-blue-500/20 hover:border-blue-500/50 text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 group disabled:opacity-40"
+            title="Genera un link de un solo uso para que el conductor se registre solo">
+            <span className="text-base group-hover:scale-110 transition-transform">🔗</span>
+            {inviteCopied ? '✓ Link copiado' : creatingInvite ? 'Generando...' : 'Link de Alta'}
           </button>
           <button onClick={onAdd} className="px-10 py-4 btn-premium rounded-xl text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap">
             Registrar Activo +
