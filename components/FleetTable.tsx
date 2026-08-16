@@ -65,16 +65,23 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
     const numeroMovil = window.prompt('Número de móvil para este nuevo registro (ej: 42):');
     if (!numeroMovil || !numeroMovil.trim()) return;
     setCreatingInvite(true);
+    let link = '';
     try {
       const token = await inviteService.createInvite(numeroMovil.trim());
-      const link = `${window.location.origin}/nuevo?token=${token}`;
+      link = `${window.location.origin}/nuevo?token=${token}`;
+    } catch (err: unknown) {
+      alert(`Error al generar el link: ${err instanceof Error ? err.message : String(err)}`);
+      setCreatingInvite(false);
+      return;
+    }
+    setCreatingInvite(false);
+    try {
       await navigator.clipboard.writeText(link);
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 3000);
     } catch {
-      alert('Error al generar el link. Intenta de nuevo.');
-    } finally {
-      setCreatingInvite(false);
+      // El link ya se creó igual — si no se pudo copiar solo, se lo mostramos para copiar a mano.
+      window.prompt('Link generado (cópialo manualmente, no se pudo copiar automáticamente):', link);
     }
   };
 
