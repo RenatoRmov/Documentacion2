@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Vehicle } from '../types';
 import StatusBadge from './StatusBadge';
 import { inviteService } from '../services/inviteService';
+import VehicleTransfer from './VehicleTransfer';
 import * as XLSX from 'xlsx';
 
 interface FleetTableProps {
@@ -21,6 +22,7 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
   const [sendingAlert, setSendingAlert] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [inviteCopied, setInviteCopied]     = useState(false);
+  const [showTransfer, setShowTransfer]     = useState(false);
 
   const filtered = fleet.filter(v =>
     v.patente.toLowerCase().includes(search.toLowerCase()) ||
@@ -191,11 +193,19 @@ const FleetTable: React.FC<FleetTableProps> = ({ fleet, onEdit, onAdd, onDelete,
             <span className="text-base group-hover:scale-110 transition-transform">🔗</span>
             {inviteCopied ? '✓ Link copiado' : creatingInvite ? 'Generando...' : 'Link de Alta'}
           </button>
+          <button onClick={() => setShowTransfer(true)}
+            className="px-8 py-4 bg-purple-950/20 border border-purple-500/20 hover:border-purple-500/50 text-purple-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 group"
+            title="Reasignar uno o varios vehículos entre conductores">
+            <span className="text-base group-hover:scale-110 transition-transform">🔁</span>
+            Movimiento de Vehículos
+          </button>
           <button onClick={onAdd} className="px-10 py-4 btn-premium rounded-xl text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap">
             Registrar Activo +
           </button>
         </div>
       </div>
+
+      {showTransfer && <VehicleTransfer fleet={fleet} onClose={() => setShowTransfer(false)} />}
 
       {/* Table */}
       <div className="bg-[#1B1F24] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
