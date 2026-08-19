@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
-import { Vehicle } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Vehicle, Conductor } from '../types';
 import { parseDate } from '../constants';
+import { conductorService } from '../services/conductorService';
 import StatusBadge from './StatusBadge';
 
 interface DashboardProps {
@@ -11,6 +12,19 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ fleet, onSelectVehicle }) => {
   const [showAuditBreakdown, setShowAuditBreakdown] = useState(false);
+
+  // Conductores sin ningún vehículo asignado no aparecen en `fleet` (que solo trae
+  // filas de vehículos), así que se cargan aparte para poder mostrarlos igual.
+  const [allConductors, setAllConductors] = useState<Conductor[]>([]);
+  useEffect(() => {
+    conductorService.fetchConductors().then(setAllConductors).catch(() => {});
+  }, [fleet]);
+
+  const carlessConductors = useMemo(() => {
+    const withVehicle = new Set(fleet.map(v => v.rutConductor).filter(Boolean));
+    return allConductors.filter(c => !withVehicle.has(c.rut));
+  }, [allConductors, fleet]);
+
   const today = new Date();
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(today.getDate() + 30);
@@ -201,6 +215,49 @@ const Dashboard: React.FC<DashboardProps> = ({ fleet, onSelectVehicle }) => {
           )}
         </div>
       </div>
+
+      {carlessConductors.length > 0 && (
+        <div className="bg-[#1B1F24] rounded-2xl overflow-hidden border border-white/5">
+          <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/10">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-zinc-500"></div>
+                <h3 className="text-sm font-black text-zinc-100 uppercase tracking-[0.4em] italic">Conductores Sin Vehículo</h3>
+              </div>
+              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.2em] mt-2">Registrados en el sistema, sin ningún móvil asignado actualmente</p>
+            </div>
+            <span className="text-3xl font-light text-zinc-400 tracking-tighter">{carlessConductors.length}</span>
+          </div>
+
+          <div className="divide-y divide-white/5">
+            {carlessConductors.map(c => (
+              <div key={c.rut} className="p-6 flex items-center gap-8">
+                <div className="w-14 h-14 rounded-lg flex items-center justify-center font-bold text-lg border bg-zinc-900/40 border-dashed border-zinc-800 text-zinc-600 shrink-0">
+                  {c.numeroMovil || '—'}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-white uppercase tracking-wide truncate">{c.nombre || 'Sin nombre'}</div>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest font-mono">RUT: {c.rut}</span>
+                    {c.celular && (
+                      <>
+                        <div className="w-1 h-1 bg-zinc-800 rounded-full"></div>
+                        <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">{c.celular}</span>
+                      </>
+                    )}
+                    {c.email && (
+                      <>
+                        <div className="w-1 h-1 bg-zinc-800 rounded-full"></div>
+                        <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">{c.email}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showAuditBreakdown && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-300">
