@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Vehicle } from '../types';
 import { vehicleService } from '../services/vehicleService';
+import { conductorService } from '../services/conductorService';
 
 interface Row {
   key: string;
@@ -12,6 +13,7 @@ interface ConductorOption {
   rut: string;
   nombre: string;
   numeroMovil: string;
+  sinVehiculo?: boolean;
 }
 
 type CarlessChoice = 'ack' | 'new';
@@ -60,15 +62,33 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
     return m;
   }, [fleet]);
 
+  // Conductores sin ningún vehículo no aparecen en `fleet` (que solo trae filas de vehículos),
+  // así que se cargan aparte para que también se puedan elegir como destino.
+  const [allConductors, setAllConductors] = useState<{ rut: string; nombre: string; numeroMovil: string }[]>([]);
+  useEffect(() => {
+    conductorService.fetchConductors()
+      .then(list => setAllConductors(list.map(c => ({ rut: c.rut, nombre: c.nombre || 'Sin nombre', numeroMovil: c.numeroMovil || '—' }))))
+      .catch(() => { /* si falla, igual queda el listado derivado de la flota */ });
+  }, []);
+
   const conductores = useMemo(() => {
     const m = new Map<string, ConductorOption>();
+    const conVehiculo = new Set<string>();
     fleet.forEach(v => {
-      if (v.rutConductor && !m.has(v.rutConductor)) {
-        m.set(v.rutConductor, { rut: v.rutConductor, nombre: v.nombreConductor || 'Sin nombre', numeroMovil: v.id });
+      if (v.rutConductor) {
+        conVehiculo.add(v.rutConductor);
+        if (!m.has(v.rutConductor)) {
+          m.set(v.rutConductor, { rut: v.rutConductor, nombre: v.nombreConductor || 'Sin nombre', numeroMovil: v.id });
+        }
       }
     });
-    return [...m.values()].sort((a, b) => (parseInt(a.numeroMovil) || 0) - (parseInt(b.numeroMovil) || 0));
-  }, [fleet]);
+    allConductors.forEach(c => {
+      if (!m.has(c.rut)) m.set(c.rut, c);
+    });
+    return [...m.values()]
+      .map(c => ({ ...c, sinVehiculo: !conVehiculo.has(c.rut) }))
+      .sort((a, b) => (parseInt(a.numeroMovil) || 0) - (parseInt(b.numeroMovil) || 0));
+  }, [fleet, allConductors]);
 
   const sortedFleet = useMemo(
     () => [...fleet].sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0)),
@@ -268,7 +288,7 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
                           <select value={row.targetRut} onChange={e => updateRow(row.key, { targetRut: e.target.value })} className={selectCls}>
                             <option value="">Selecciona conductor...</option>
                             {conductores.map(c => (
-                              <option key={c.rut} value={c.rut}>Móvil {c.numeroMovil} — {c.nombre}</option>
+                              <option key={c.rut} value={c.rut}>Móvil {c.numeroMovil} — {c.nombre}{c.sinVehiculo ? ' (sin vehículo)' : ''}</option>
                             ))}
                           </select>
                         </div>
