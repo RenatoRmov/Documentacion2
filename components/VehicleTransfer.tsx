@@ -14,6 +14,28 @@ interface ConductorOption {
   numeroMovil: string;
 }
 
+type CarlessChoice = 'ack' | 'new';
+
+interface NewVehicleDraft {
+  patente: string;
+  tipo: string;
+  marca: string;
+  modelo: string;
+  color: string;
+  año: string;
+  asientos: string;
+}
+
+const EMPTY_DRAFT: NewVehicleDraft = { patente: '', tipo: 'AUTOMOVIL', marca: '', modelo: '', color: '', año: String(new Date().getFullYear()), asientos: '5' };
+
+const TIPO_OPTIONS = [
+  { label: 'Automóvil',      value: 'AUTOMOVIL' },
+  { label: 'Station Wagon',  value: 'STATION WAGON' },
+  { label: 'SUV',            value: 'SUV' },
+  { label: 'Minibus',        value: 'MINIBUS' },
+  { label: 'Taxi Ejecutivo', value: 'TAXI EJECUTIVO' },
+];
+
 let rowCounter = 0;
 const newRow = (): Row => ({ key: `row-${++rowCounter}-${Date.now()}`, patente: '', targetRut: '' });
 
@@ -24,7 +46,8 @@ interface Props {
 
 const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
   const [rows, setRows] = useState<Row[]>([newRow()]);
-  const [ackCarless, setAckCarless] = useState(false);
+  const [carlessChoice, setCarlessChoice] = useState<Record<string, CarlessChoice>>({});
+  const [newVehicleDrafts, setNewVehicleDrafts] = useState<Record<string, NewVehicleDraft>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -59,6 +82,16 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
 
   const addRow = () => setRows(prev => [...prev, newRow()]);
   const removeRow = (key: string) => setRows(prev => (prev.length === 1 ? prev : prev.filter(r => r.key !== key)));
+
+  const chooseCarless = (rut: string, choice: CarlessChoice) => {
+    setCarlessChoice(prev => ({ ...prev, [rut]: choice }));
+    if (choice === 'new' && !newVehicleDrafts[rut]) {
+      setNewVehicleDrafts(prev => ({ ...prev, [rut]: { ...EMPTY_DRAFT } }));
+    }
+  };
+
+  const updateDraft = (rut: string, patch: Partial<NewVehicleDraft>) =>
+    setNewVehicleDrafts(prev => ({ ...prev, [rut]: { ...(prev[rut] ?? EMPTY_DRAFT), ...patch } }));
 
   const usedPatentes = new Set(rows.map(r => r.patente).filter(Boolean));
 
@@ -102,12 +135,30 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
 
   const willBeCarless = preview.filter(p => p.before > 0 && p.after <= 0);
 
-  const hasBlockingIssues = duplicatePatentes.size > 0 || noopRows.length > 0;
+  // Cada conductor que queda sin vehículo debe resolverse explícitamente:
+  // o se confirma que queda así por ahora, o se le carga un vehículo nuevo (con patente válida).
+  const carlessResolved = willBeCarless.every(p => {
+    const choice = carlessChoice[p.rut];
+    if (choice === 'ack') return true;
+    if (choice === 'new') return !!newVehicleDrafts[p.rut]?.patente.trim();
+    return false;
+  });
+
+  const newVehiclePatentes = willBeCarless
+    .filter(p => carlessChoice[p.rut] === 'new')
+    .map(p => (newVehicleDrafts[p.rut]?.patente ?? '').trim().toUpperCase())
+    .filter(Boolean);
+
+  const newVehicleDup =
+    newVehiclePatentes.some(pat => vehicleByPatente.has(pat) || usedPatentes.has(pat)) ||
+    new Set(newVehiclePatentes).size !== newVehiclePatentes.length;
+
+  const hasBlockingIssues = duplicatePatentes.size > 0 || noopRows.length > 0 || newVehicleDup;
   const canSubmit =
     validRows.length > 0 &&
     validRows.length === rows.length && // todas las filas completas
     !hasBlockingIssues &&
-    (willBeCarless.length === 0 || ackCarless);
+    carlessResolved;
 
   // ── Envío ──
 
@@ -119,6 +170,46 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
       for (const r of validRows) {
         await vehicleService.updateVehicle(r.patente, { rutConductor: r.targetRut });
       }
+
+      // Conductores que quedaron sin vehículo y recibieron uno nuevo (no viene de otro móvil)
+      for (const p of willBeCarless) {
+        if (carlessChoice[p.rut] !== 'new') continue;
+        const draft = newVehicleDrafts[p.rut];
+        if (!draft) continue;
+        const sample = fleet.find(v => v.rutConductor === p.rut); // datos personales del conductor, ya existentes
+        const nuevo: Vehicle = {
+          id: p.numeroMovil,
+          patente: draft.patente.trim().toUpperCase(),
+          tipo: draft.tipo, marca: draft.marca.trim(), modelo: draft.modelo.trim(), color: draft.color.trim(),
+          año: Number(draft.año) || 0, asientos: Number(draft.asientos) || 0,
+          estado: 'Externo', statusOperativo: 'Activo',
+          nombrePropietario: '', rutPropietario: '',
+          vencimientoPadron: '', vencimientoPermisoCirculacion: '', municipalidadPermiso: '',
+          vencimientoRevisionTecnica: '', vencimientoSOAP: '', vencimientoControlTaximetro: 'Sin Información',
+          certificadoAntecedentes: 'Sin Información', prestacionSS: 'Sin Información', contratoArriendo: 'Sin Información',
+          vencimientoSeguroAccidentes: '', lugarSeguroAccidentes: '',
+          vencimientoSeguroAsiento: 'Sin Información', aseguradoraAsiento: '',
+          vencimientoSeguroVidaConductor: sample?.vencimientoSeguroVidaConductor ?? '',
+          aseguradoraVida: sample?.aseguradoraVida ?? '',
+          nombreConductor: sample?.nombreConductor ?? p.nombre,
+          rutConductor: p.rut,
+          fechaNacimiento: sample?.fechaNacimiento ?? '',
+          celular: sample?.celular ?? '',
+          email: sample?.email ?? '',
+          direccion: sample?.direccion ?? '',
+          comuna: sample?.comuna ?? '',
+          claseLicencia: sample?.claseLicencia ?? '',
+          leyLicencia: sample?.leyLicencia ?? '',
+          municipalidadLicencia: sample?.municipalidadLicencia ?? '',
+          vigenciaCarnetDesde: sample?.vigenciaCarnetDesde ?? '',
+          vigenciaCarnetHasta: sample?.vigenciaCarnetHasta ?? '',
+          vigenciaLicenciaDesde: sample?.vigenciaLicenciaDesde ?? '',
+          vigenciaLicenciaHasta: sample?.vigenciaLicenciaHasta ?? '',
+          conductorRut: p.rut,
+        };
+        await vehicleService.createVehicle(nuevo);
+      }
+
       setDone(true);
       setTimeout(onClose, 1500);
     } catch (err: unknown) {
@@ -221,12 +312,81 @@ const VehicleTransfer: React.FC<Props> = ({ fleet, onClose }) => {
               )}
 
               {willBeCarless.length > 0 && (
-                <label className="flex items-start gap-3 p-4 rounded-xl border border-amber-700/30 bg-amber-900/10 cursor-pointer">
-                  <input type="checkbox" checked={ackCarless} onChange={e => setAckCarless(e.target.checked)} className="mt-0.5" />
-                  <span className="text-[10px] text-amber-300 leading-relaxed">
-                    Confirmo que {willBeCarless.map(p => `Móvil ${p.numeroMovil} (${p.nombre})`).join(', ')} quedará sin vehículo asignado después de este movimiento.
-                  </span>
-                </label>
+                <div className="space-y-3">
+                  {willBeCarless.map(p => {
+                    const choice = carlessChoice[p.rut];
+                    const draft = newVehicleDrafts[p.rut] ?? EMPTY_DRAFT;
+                    return (
+                      <div key={p.rut} className="p-4 rounded-xl border border-amber-700/30 bg-amber-900/10 space-y-3">
+                        <p className="text-[10px] text-amber-300 font-bold leading-relaxed">
+                          ⚠️ Móvil {p.numeroMovil} ({p.nombre}) quedará sin vehículo asignado — ¿qué corresponde?
+                        </p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => chooseCarless(p.rut, 'ack')}
+                            className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
+                              choice === 'ack' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' : 'bg-black/20 border-white/10 text-zinc-500 hover:text-zinc-300'
+                            }`}>
+                            Sin vehículo por ahora
+                          </button>
+                          <button type="button" onClick={() => chooseCarless(p.rut, 'new')}
+                            className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
+                              choice === 'new' ? 'bg-[#C29329]/20 border-[#C29329]/50 text-[#C29329]' : 'bg-black/20 border-white/10 text-zinc-500 hover:text-zinc-300'
+                            }`}>
+                            Tiene un vehículo nuevo
+                          </button>
+                        </div>
+
+                        {choice === 'new' && (
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                            <div className="col-span-2">
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Patente *</label>
+                              <input value={draft.patente} onChange={e => updateDraft(p.rut, { patente: e.target.value.toUpperCase() })}
+                                placeholder="AB1234" maxLength={8}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white font-mono tracking-widest placeholder-zinc-700 focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo</label>
+                              <select value={draft.tipo} onChange={e => updateDraft(p.rut, { tipo: e.target.value })} className={selectCls}>
+                                {TIPO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Año</label>
+                              <input type="number" value={draft.año} onChange={e => updateDraft(p.rut, { año: e.target.value })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Marca</label>
+                              <input value={draft.marca} onChange={e => updateDraft(p.rut, { marca: e.target.value })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Modelo</label>
+                              <input value={draft.modelo} onChange={e => updateDraft(p.rut, { modelo: e.target.value })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Color</label>
+                              <input value={draft.color} onChange={e => updateDraft(p.rut, { color: e.target.value })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Asientos</label>
+                              <input type="number" value={draft.asientos} onChange={e => updateDraft(p.rut, { asientos: e.target.value })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                            </div>
+                            {!draft.patente.trim() && (
+                              <p className="col-span-2 text-[9px] font-bold text-red-400">Falta la patente del vehículo nuevo.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {newVehicleDup && (
+                    <p className="text-[9px] font-bold text-red-400">Hay una patente de vehículo nuevo repetida o que ya existe en el sistema.</p>
+                  )}
+                </div>
               )}
 
               {error && (
